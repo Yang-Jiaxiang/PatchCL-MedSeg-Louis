@@ -2,6 +2,8 @@ import torch
 import torch.nn.functional as F
 import math
 
+dev=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 def get_embeddings(model, patch_list, studentBool,batch_size=4):
     embedding_list=[]
     for cls in range(len(patch_list)):

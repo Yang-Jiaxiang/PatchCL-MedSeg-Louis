@@ -3,6 +3,12 @@ class Embedding_Queues():
         self.num_classes=num_classes
         self.max_length=max_length
         self.queues = [[] for j in range(self.num_classes) ]
+        
+    def __getitem__(self, idx):
+        return self.queues[idx]
+    
+    def __len__(self):
+        return len(self.queues)
     
     def enqueue(self,new_embeddings):
         for i in range(self.num_classes):

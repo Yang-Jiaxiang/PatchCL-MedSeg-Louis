@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import torch
 import torch.nn.functional as F
 
 def hard_neg(samples_p, mean_p, cov_p, samples_n, mean_n, cov_n, beta=0.5):
