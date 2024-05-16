@@ -52,7 +52,7 @@ def get_pascal_labels():
                        [0, 64, 128]])
 
 
-def encode_segmap(mask):
+def encode_segmap(mask, colormap):
     """Encode segmentation label images as pascal classes
     Args:
         mask (np.ndarray): raw segmentation label image of dimension
@@ -63,7 +63,7 @@ def encode_segmap(mask):
     """
     mask = mask.astype(int)
     label_mask = np.zeros((mask.shape[0], mask.shape[1]), dtype=np.int16)
-    for ii, label in enumerate(get_pascal_labels()):
+    for ii, label in enumerate(colormap):
         label_mask[np.where(np.all(mask == label, axis=-1))[:2]] = ii
     label_mask = label_mask.astype(int)
     return label_mask

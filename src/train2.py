@@ -120,6 +120,7 @@ if __name__=="__main__":
             student_emb_list = get_embeddings(model,qualified_tensor_patch_list,True)
             print('student_emb_list len: ', len(student_emb_list))
 
+
             #get embeddings of augmented patches through teacher model
             teacher_model.train()
             teacher_model.module.contrast = True
