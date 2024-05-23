@@ -87,7 +87,7 @@ class PascalVOCDataset(Dataset):
         cropped_image = _cropImage(image, x, y, w, h)
         
         cropped_image = cv2.resize(cropped_image, (self.image_size, self.image_size), interpolation=cv2.INTER_NEAREST)
-        image = torch.from_numpy(cropped_image).float().permute(2, 0 , 1)
+        image = self.image_transform(cropped_image)
         
         if self.labeled:
             mask_name = os.path.join(self.root_dir, self.image_mask_pairs[idx][1])
