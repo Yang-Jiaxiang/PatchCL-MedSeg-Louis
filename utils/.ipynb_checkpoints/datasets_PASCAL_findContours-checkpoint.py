@@ -79,7 +79,7 @@ class PascalVOCDataset(Dataset):
 
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, self.image_mask_pairs[idx][0])
-        image = cv2.imread(img_name)
+        image = cv2.imread(img_name, cv2.IMREAD_GRAYSCALE)
         image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB) 
     
         # cs2.findContours 裁切，回傳 x, y, w, h
@@ -87,7 +87,7 @@ class PascalVOCDataset(Dataset):
         cropped_image = _cropImage(image, x, y, w, h)
         
         cropped_image = cv2.resize(cropped_image, (self.image_size, self.image_size), interpolation=cv2.INTER_NEAREST)
-        image = self.image_transform(cropped_image)
+        image = torch.from_numpy(cropped_image).float().permute(2, 0 , 1)
         
         if self.labeled:
             mask_name = os.path.join(self.root_dir, self.image_mask_pairs[idx][1])
@@ -95,7 +95,7 @@ class PascalVOCDataset(Dataset):
             mask = cv2.cvtColor(mask,cv2.COLOR_BGR2RGB)
             cropped_mask = _cropImage(mask, x, y, w, h)
             cropped_mask = cv2.resize(cropped_mask, (self.image_size, self.image_size), interpolation=cv2.INTER_NEAREST)
-            mask = encode_segmap(cropped_mask, self.colormap) # output (244,244)
+            mask = encode_segmap(cropped_mask, self.colormap) # output (244,244) 
             
             one_hot_mask = np.zeros((2, self.image_size, self.image_size), dtype=np.uint8)
             one_hot_mask[0, mask == 0] = 1
