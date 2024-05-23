@@ -25,6 +25,9 @@ class PascalVOCDataset(Dataset):
         self.image_size = image_size
         self.labeled = labeled
         self.colormap = colormap
+        self.image_transform = transforms.Compose([
+            transforms.ToTensor(),  # 將圖像轉為 [0, 1] 的 tensor
+        ])
 
         with open(txt_file, 'r') as file:
             self.image_mask_pairs = [line.strip().split() for line in file]
@@ -37,7 +40,7 @@ class PascalVOCDataset(Dataset):
         image = cv2.imread(img_name)
         image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB) 
         image = cv2.resize(image, (self.image_size, self.image_size), interpolation=cv2.INTER_NEAREST)
-        image = torch.tensor(image).permute(2, 0, 1).float()
+        image = self.image_transform(image)
 
         if self.labeled:
             mask_name = os.path.join(self.root_dir, self.image_mask_pairs[idx][1])
@@ -58,109 +61,3 @@ class PascalVOCDataset(Dataset):
     
 
     
-
-# class LabData(Dataset):
-#     def __init__(
-#         self,
-#         base_dir=None,
-#         split="train",
-#         num=None,
-#         transform=None,
-#         ops_weak=None,
-#         ops_strong=None,
-#         labeled_slice=None,
-#     ):
-#         self._base_dir = base_dir
-#         self.sample_list = []
-#         self.split = split
-#         self.transform = transform
-#         self.ops_weak = ops_weak
-#         self.ops_strong = ops_strong
-
-#         if self.split == "train":
-#             with open(self._base_dir + "/train_slices.list", "r") as f1:
-#                 self.sample_list = f1.readlines()
-#             self.sample_list = [item.replace("\n", "") for item in self.sample_list[0:labeled_slice]]
-
-#         elif self.split == "val":
-#             with open(self._base_dir + "/val.list", "r") as f:
-#                 self.sample_list = f.readlines()
-#             self.sample_list = [item.replace("\n", "") for item in self.sample_list]
-#         if num is not None and self.split == "train":
-#             self.sample_list = self.sample_list[:num]
-#         print("total {} samples".format(len(self.sample_list)))
-
-#     def __len__(self):
-#         return len(self.sample_list)
-
-#     def __getitem__(self, idx):
-#         case = self.sample_list[idx]
-#         if self.split == "train":
-#             h5f = h5py.File(self._base_dir + "/data/slices/{}.h5".format(case), "r")
-#         else:
-#             h5f = h5py.File(self._base_dir + "/data/{}.h5".format(case), "r")
-#         image = h5f["image"][:]
-#         label = h5f["label"][:]
-#         sample = {"image": image, "label": label}
-#         if self.split == "train":
-#             if None not in (self.ops_weak, self.ops_strong):
-#                 sample = self.transform(sample, self.ops_weak, self.ops_strong)
-#             else:
-#                 sample = self.transform(sample)
-#         sample["idx"] = idx
-#         return sample
-
-# class UnlabData(Dataset):
-#     def __init__(
-#         self,
-#         base_dir=None,
-#         split="train",
-#         num=None,
-#         transform=None,
-#         ops_weak=None,
-#         ops_strong=None,
-#         labeled_slice=None,
-#     ):
-#         self._base_dir = base_dir
-#         self.sample_list = []
-#         self.split = split
-#         self.transform = transform
-#         self.ops_weak = ops_weak
-#         self.ops_strong = ops_strong
-
-#         assert bool(ops_weak) == bool(
-#             ops_strong
-#         ), "For using CTAugment learned policies, provide both weak and strong batch augmentation policy"
-
-#         if self.split == "train":
-#             with open(self._base_dir + "/train_slices.list", "r") as f1:
-#                 self.sample_list = f1.readlines()
-#             self.sample_list = [item.replace("\n", "") for item in self.sample_list[0:labeled_slice]]
-
-#         elif self.split == "val":
-#             with open(self._base_dir + "/val.list", "r") as f:
-#                 self.sample_list = f.readlines()
-#             self.sample_list = [item.replace("\n", "") for item in self.sample_list]
-#         if num is not None and self.split == "train":
-#             self.sample_list = self.sample_list[:num]
-#         print("total {} samples".format(len(self.sample_list)))
-
-#     def __len__(self):
-#         return len(self.sample_list)
-
-#     def __getitem__(self, idx):
-#         case = self.sample_list[idx]
-#         if self.split == "train":
-#             h5f = h5py.File(self._base_dir + "/data/slices/{}.h5".format(case), "r")
-#         else:
-#             h5f = h5py.File(self._base_dir + "/data/{}.h5".format(case), "r")
-#         image = h5f["image"][:]
-#         label = h5f["label"][:]
-#         sample = {"image": image, "label": label}
-#         if self.split == "train":
-#             if None not in (self.ops_weak, self.ops_strong):
-#                 sample = self.transform(sample, self.ops_weak, self.ops_strong)
-#             else:
-#                 sample = self.transform(sample)
-#         sample["idx"] = idx
-#         return sample

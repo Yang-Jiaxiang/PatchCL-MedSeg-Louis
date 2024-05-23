@@ -12,6 +12,10 @@ def get_embeddings(model, patch_list, studentBool,batch_size=4):
             # print('yo',patch_list[cls].shape[0],math.ceil(patch_list[cls].shape[0]/batch_size))
             for i in range(math.ceil(patch_list[cls].shape[0]/batch_size)):
                 batch = patch_list[cls][i*batch_size:min((i+1)*batch_size,patch_list[cls].shape[0]),:,:,:]
+                               
+                if batch.size(0) < 2:
+                    continue
+                
                 if studentBool is True:
                     batch=batch.to(dev)
                 emb = model(batch)
