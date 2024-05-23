@@ -33,7 +33,9 @@ class Network(nn.Module):
             x =self.fc(x)
             return x
         else:
-            return self.seg_model(x)
+            x = self.seg_model(x)
+            x = torch.sigmoid(x)  # Apply sigmoid to the output of seg_model
+            return x
 
 # +
 # class Network(nn.Module):
