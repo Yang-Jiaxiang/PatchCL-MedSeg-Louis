@@ -6,7 +6,7 @@
 contrastive_batch_size = 7
 embedding_size = 128
 img_size = 224
-batch_size = 16
+batch_size = 32
 num_classes = 2
 
 base_path = '/home/u5169119/PatchCL-MedSeg-jiyu'
@@ -18,7 +18,7 @@ save_interval = 10  # 每 10 輪儲存一次
 parameter = f'Resnet18_Image-{img_size}_patchSize-{contrastive_batch_size}_ContrastieWeights-{ContrastieWeights}'
 supervised_loss_path = f'{base_path}/output/supervised pre training_loss-{parameter}.csv'
 SSL_loss_path = f'{base_path}/output/SSL_loss-{parameter}.csv'
-save_model_path = f'{base_path}/output/best_contrast-{parameter}'
+save_model_path = f'{base_path}/output/{contrastive_batch_size}-{ContrastieWeights}/best_contrast-{parameter}'
 
 voc_mask_color_map = [
     [0, 0, 0], #_background
@@ -118,8 +118,6 @@ scheduler = PolynomialLRDecay(optimizer=optimizer_pretrain, max_decay_steps=200,
 
 
 # %%
-
-
 labeled_dataset = PascalVOCDataset(txt_file=output_dir + "/1-3/labeled.txt", image_size=img_size, root_dir=dataset_path, labeled=True, colormap=voc_mask_color_map)
 labeled_dataset_length = len(labeled_dataset)
 
@@ -145,8 +143,6 @@ print('number of unlabeled_dataset: ', len(unlabeled_dataset))
 
 
 # %%
-
-
 for imgs, masks in train_loader:
     break
 
@@ -492,8 +488,6 @@ model = torch.load(f"{save_model_path}_s_epoch99.pth")
 teacher_model = torch.load(f"{save_model_path}_t_epoch99.pth")
 
 # %%
-
-
 for c_epochs in range(200): #200 epochs supervised SSL
     step=0
     min_loss = math.inf
