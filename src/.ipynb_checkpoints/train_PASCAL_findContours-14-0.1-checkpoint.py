@@ -3,8 +3,6 @@
 # %%
 
 # %%
-
-
 contrastive_batch_size = 14
 embedding_size = 128
 img_size = 224
@@ -15,12 +13,13 @@ base_path = '/home/u5169119/PatchCL-MedSeg-jiyu'
 dataset_path = '/home/u5169119/dataset/0_data_dataset_voc_950_kidney'
 output_dir = base_path + '/dataset/splits/kidney'
 ContrastieWeights = 0.1
-save_interval = 10  # 每 10 輪儲存一次
+save_interval = 5  # 每 10 輪儲存一次
 
 parameter = f'Resnet18_Image-{img_size}_patchSize-{contrastive_batch_size}_ContrastieWeights-{ContrastieWeights}'
 supervised_loss_path = f'{base_path}/output/supervised pre training_loss-{parameter}.csv'
 SSL_loss_path = f'{base_path}/output/SSL_loss-{parameter}.csv'
-save_model_path = f'{base_path}/output/best_contrast-{parameter}'
+save_model_path = f'{base_path}/output/{contrastive_batch_size}-{ContrastieWeights}/spuervised_model-'
+SSL_model_save_path = f'{base_path}/output/{contrastive_batch_size}-{ContrastieWeights}/SSL_model-'
 
 voc_mask_color_map = [
     [0, 0, 0], #_background
@@ -29,8 +28,6 @@ voc_mask_color_map = [
 
 
 # %%
-
-
 import os
 import sys
 import torch
@@ -58,7 +55,7 @@ from utils.patch_utils import _get_patches
 from utils.aug_utils import batch_augment
 from utils.get_embds import get_embeddings
 from utils.const_reg import consistency_cost
-from utils.plg_loss import PCGJCL
+from utils.plg_loss import PCGJCL_GPU
 from utils.torch_poly_lr_decay import PolynomialLRDecay
 from utils.loss_file import save_loss
 from utils.performance import calculate_metrics
@@ -257,7 +254,8 @@ def print_and_visualize_masks_outputs(masks, output, threshold=0.5):
 
 
 # %%
-
+model = torch.load(f"{save_model_path}99-s.pth")
+teacher_model = torch.load(f"{save_model_path}99-t.pth")
 
 #get embeddings of qualified patches through student model
 model=model.train()
@@ -276,7 +274,7 @@ print('teacher_embedding_list len: ', len(teacher_embedding_list))
 embd_queues.enqueue(teacher_embedding_list)
 
 #calculate PCGJCL loss
-PCGJCL_loss = PCGJCL(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096)
+PCGJCL_loss = PCGJCL_GPU(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096)
 PCGJCL_loss = PCGJCL_loss.to(dev)
 print('PCGJCL_loss: ', PCGJCL_loss)
 
@@ -349,8 +347,8 @@ def validate(model, val_loader, criterion, num_classes):
 
     return val_loss, val_miou, val_accuracy, val_dice
 
-
 # %%
+# import gc
 
 
 # for c_epochs in range(100): #100 epochs supervised pre training
@@ -418,7 +416,7 @@ def validate(model, val_loader, criterion, num_classes):
 #         embd_queues.enqueue(teacher_embedding_list)
 
 #         #calculate PCGJCL loss
-#         PCGJCL_loss = PCGJCL(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096)        
+#         PCGJCL_loss = PCGJCL_GPU(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096)        
 #         print('PCGJCL_loss: ', PCGJCL_loss.item())
         
 #         #calculate supervied loss
@@ -485,17 +483,13 @@ def validate(model, val_loader, criterion, num_classes):
 #     )
     
 #     if (c_epochs + 1) % save_interval == 0:
-#         torch.save(model,f'{save_model_path}_s_epoch{c_epochs}.pth')
-#         torch.save(teacher_model,f'{save_model_path}_t_epoch{c_epochs}.pth')
+#         torch.save(model,f"{save_model_path}{c_epochs}-s.pth")
+#         torch.save(teacher_model,f"{save_model_path}{c_epochs}-t.pth")
 
 
 # %%
-model = torch.load(f"{base_path}/output/14-0.1/best_contrast-Resnet18_Image-224_patchSize-14_ContrastieWeights-0.1_s_epoch99.pth")
-teacher_model = torch.load(f"{base_path}/output/14-0.1/best_contrast-Resnet18_Image-224_patchSize-14_ContrastieWeights-0.1_t_epoch99.pth")
 
 # %%
-
-
 for c_epochs in range(200): #200 epochs supervised SSL
     step=0
     min_loss = math.inf
@@ -539,8 +533,8 @@ for c_epochs in range(200): #200 epochs supervised SSL
                 imgs2, masks2 = next(train_iterator)
 
             #concatenating unlabeled and labeled sets
-            p_masks = torch.cat([p_masks,masks2],dim=0)
-            imgs = torch.cat([imgs,imgs2],dim=0)
+            p_masks = torch.cat([p_masks,masks2])
+            imgs = torch.cat([imgs,imgs2])
             
             #get classwise patch list
             patch_list = _get_patches(
@@ -581,7 +575,7 @@ for c_epochs in range(200): #200 epochs supervised SSL
 
         #enqueue these
         embd_queues.enqueue(teacher_embedding_list)
-        PCGJCL_loss = PCGJCL(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096) 
+        PCGJCL_loss = PCGJCL_GPU(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096) 
 
         #calculate supervied loss
         imgs2, p_masks =imgs2.to(dev), p_masks.to(dev)
@@ -631,13 +625,13 @@ for c_epochs in range(200): #200 epochs supervised SSL
         print('step ', step, 'loss: ',loss, ' & time: ',t2-t1)
         step+=1
         
-    avg_t_epoch_loss = epoch_t_loss / len(train_loader)
-    avg_t_supervised_loss = total_t_supervised_loss / len(train_loader)
-    avg_t_contrastive_loss = total_t_contrastive_loss / len(train_loader)
-    avg_consistency_loss = total_t_consistency_loss / len(train_loader)
-    avg_t_miou = total_t_miou / len(train_loader)
-    avg_t_accuracy = total_t_accuracy / len(train_loader)
-    avg_t_dice = total_t_dice / len(train_loader)
+    avg_t_epoch_loss = epoch_t_loss / len(unlabeled_loader)
+    avg_t_supervised_loss = total_t_supervised_loss / len(unlabeled_loader)
+    avg_t_contrastive_loss = total_t_contrastive_loss / len(unlabeled_loader)
+    avg_consistency_loss = total_t_consistency_loss / len(unlabeled_loader)
+    avg_t_miou = total_t_miou / len(unlabeled_loader)
+    avg_t_accuracy = total_t_accuracy / len(unlabeled_loader)
+    avg_t_dice = total_t_dice / len(unlabeled_loader)
     
     reset_bn_stats(model, train_loader)
     val_loss, val_miou, val_accuracy, val_dice = validate(model, val_loader, cross_entropy_loss, num_classes)
@@ -661,12 +655,8 @@ for c_epochs in range(200): #200 epochs supervised SSL
      )
     
     if (c_epochs + 1) % save_interval == 0:
-        torch.save(model,f'{save_model_path}_s_epoch{c_epochs}_SSL.pth')
-        torch.save(teacher_model,f'{save_model_path}_t_epoch{c_epochs}_SSL.pth')
+        torch.save(model,f"{SSL_model_save_path}_s_{c_epochs}.pth")
+        torch.save(teacher_model,f"{SSL_model_save_path}_t_{c_epochs}.pth")
 
 
 # %%
-
-
-
-

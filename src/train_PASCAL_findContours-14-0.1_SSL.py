@@ -3,22 +3,25 @@
 # %%
 
 # %%
-contrastive_batch_size = 7
+
+
+contrastive_batch_size = 14
 embedding_size = 128
 img_size = 224
-batch_size = 32
+batch_size = 16
 num_classes = 2
 
 base_path = '/home/u5169119/PatchCL-MedSeg-jiyu'
 dataset_path = '/home/u5169119/dataset/0_data_dataset_voc_950_kidney'
 output_dir = base_path + '/dataset/splits/kidney'
 ContrastieWeights = 0.1
-save_interval = 10  # 每 10 輪儲存一次
+save_interval = 2  # 每 10 輪儲存一次
 
 parameter = f'Resnet18_Image-{img_size}_patchSize-{contrastive_batch_size}_ContrastieWeights-{ContrastieWeights}'
 supervised_loss_path = f'{base_path}/output/supervised pre training_loss-{parameter}.csv'
 SSL_loss_path = f'{base_path}/output/SSL_loss-{parameter}.csv'
-save_model_path = f'{base_path}/output/{contrastive_batch_size}-{ContrastieWeights}/best_contrast-{parameter}'
+save_model_path = f'{base_path}/output/best_contrast-{parameter}'
+SSL_model_save_path = f"{base_path}/output/{contrastive_batch_size}-{ContrastieWeights}/SSL-Resnet18_Image-224_patchSize-{contrastive_batch_size}_ContrastieWeights-{ContrastieWeights}"
 
 voc_mask_color_map = [
     [0, 0, 0], #_background
@@ -118,6 +121,8 @@ scheduler = PolynomialLRDecay(optimizer=optimizer_pretrain, max_decay_steps=200,
 
 
 # %%
+
+
 labeled_dataset = PascalVOCDataset(txt_file=output_dir + "/1-3/labeled.txt", image_size=img_size, root_dir=dataset_path, labeled=True, colormap=voc_mask_color_map)
 labeled_dataset_length = len(labeled_dataset)
 
@@ -143,6 +148,8 @@ print('number of unlabeled_dataset: ', len(unlabeled_dataset))
 
 
 # %%
+
+
 for imgs, masks in train_loader:
     break
 
@@ -251,7 +258,8 @@ def print_and_visualize_masks_outputs(masks, output, threshold=0.5):
 
 
 # %%
-
+model = torch.load(f"{base_path}/output/14-0.1/SSL-Resnet18_Image-224_patchSize-14_ContrastieWeights-0.1_s_29.pth")
+teacher_model = torch.load(f"{base_path}/output/14-0.1/SSL-Resnet18_Image-224_patchSize-14_ContrastieWeights-0.1_t_29.pth")
 
 #get embeddings of qualified patches through student model
 model=model.train()
@@ -484,11 +492,11 @@ def validate(model, val_loader, criterion, num_classes):
 
 
 # %%
-model = torch.load(f"{save_model_path}_s_epoch99.pth")
-teacher_model = torch.load(f"{save_model_path}_t_epoch99.pth")
 
 # %%
-for c_epochs in range(200): #200 epochs supervised SSL
+
+
+for c_epochs in range(30,200): #200 epochs supervised SSL
     step=0
     min_loss = math.inf
     epoch_t_loss=0
@@ -531,8 +539,8 @@ for c_epochs in range(200): #200 epochs supervised SSL
                 imgs2, masks2 = next(train_iterator)
 
             #concatenating unlabeled and labeled sets
-            p_masks = torch.cat([p_masks,masks2],dim=0)
-            imgs = torch.cat([imgs,imgs2],dim=0)
+            p_masks = torch.cat([p_masks,masks2])
+            imgs = torch.cat([imgs,imgs2])
             
             #get classwise patch list
             patch_list = _get_patches(
@@ -623,13 +631,13 @@ for c_epochs in range(200): #200 epochs supervised SSL
         print('step ', step, 'loss: ',loss, ' & time: ',t2-t1)
         step+=1
         
-    avg_t_epoch_loss = epoch_t_loss / len(train_loader)
-    avg_t_supervised_loss = total_t_supervised_loss / len(train_loader)
-    avg_t_contrastive_loss = total_t_contrastive_loss / len(train_loader)
-    avg_consistency_loss = total_t_consistency_loss / len(train_loader)
-    avg_t_miou = total_t_miou / len(train_loader)
-    avg_t_accuracy = total_t_accuracy / len(train_loader)
-    avg_t_dice = total_t_dice / len(train_loader)
+    avg_t_epoch_loss = epoch_t_loss / len(unlabeled_loader)
+    avg_t_supervised_loss = total_t_supervised_loss / len(unlabeled_loader)
+    avg_t_contrastive_loss = total_t_contrastive_loss / len(unlabeled_loader)
+    avg_consistency_loss = total_t_consistency_loss / len(unlabeled_loader)
+    avg_t_miou = total_t_miou / len(unlabeled_loader)
+    avg_t_accuracy = total_t_accuracy / len(unlabeled_loader)
+    avg_t_dice = total_t_dice / len(unlabeled_loader)
     
     reset_bn_stats(model, train_loader)
     val_loss, val_miou, val_accuracy, val_dice = validate(model, val_loader, cross_entropy_loss, num_classes)
@@ -653,12 +661,6 @@ for c_epochs in range(200): #200 epochs supervised SSL
      )
     
     if (c_epochs + 1) % save_interval == 0:
-        torch.save(model,f'{save_model_path}_s_epoch{c_epochs}_SSL.pth')
-        torch.save(teacher_model,f'{save_model_path}_t_epoch{c_epochs}_SSL.pth')
-
-
-# %%
-
-
-
+        torch.save(model,f"{SSL_model_save_path}_s_{c_epochs}.pth")
+        torch.save(teacher_model,f"{SSL_model_save_path}_t_{c_epochs}.pth")
 

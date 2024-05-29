@@ -3,6 +3,8 @@
 # %%
 
 # %%
+
+
 contrastive_batch_size = 14
 embedding_size = 128
 img_size = 224
@@ -12,7 +14,7 @@ num_classes = 2
 base_path = '/home/u5169119/PatchCL-MedSeg-jiyu'
 dataset_path = '/home/u5169119/dataset/0_data_dataset_voc_950_kidney'
 output_dir = base_path + '/dataset/splits/kidney'
-ContrastieWeights = 0.1
+ContrastieWeights = 0.5
 save_interval = 5  # 每 10 輪儲存一次
 
 parameter = f'Resnet18_Image-{img_size}_patchSize-{contrastive_batch_size}_ContrastieWeights-{ContrastieWeights}'
@@ -28,6 +30,8 @@ voc_mask_color_map = [
 
 
 # %%
+
+
 import os
 import sys
 import torch
@@ -254,8 +258,8 @@ def print_and_visualize_masks_outputs(masks, output, threshold=0.5):
 
 
 # %%
-model = torch.load(f"{save_model_path}99-s.pth")
-teacher_model = torch.load(f"{save_model_path}99-t.pth")
+# model = torch.load(f"{base_path}/output/best_contrast-Resnet18_Image-224_patchSize-14_ContrastieWeights-0.5_s_epoch99.pth")
+# teacher_model = torch.load(f"{base_path}/output/best_contrast-Resnet18_Image-224_patchSize-14_ContrastieWeights-0.5_t_epoch99.pth")
 
 #get embeddings of qualified patches through student model
 model=model.train()
@@ -347,144 +351,145 @@ def validate(model, val_loader, criterion, num_classes):
 
     return val_loss, val_miou, val_accuracy, val_dice
 
+
 # %%
-# import gc
+import gc
 
 
-# for c_epochs in range(100): #100 epochs supervised pre training
-#     step=0
-#     min_loss = math.inf
-#     epoch_t_loss=0
-#     print('Epoch ',c_epochs)
+for c_epochs in range(100): #100 epochs supervised pre training
+    step=0
+    min_loss = math.inf
+    epoch_t_loss=0
+    print('Epoch ',c_epochs)
     
-#     total_t_supervised_loss = 0
-#     total_t_contrastive_loss = 0 
-#     total_t_miou = 0 
-#     total_t_accuracy = 0 
-#     total_t_dice = 0 
+    total_t_supervised_loss = 0
+    total_t_contrastive_loss = 0 
+    total_t_miou = 0 
+    total_t_accuracy = 0 
+    total_t_dice = 0 
     
-#     for imgs, masks in train_loader:
-#         optimizer_pretrain.zero_grad()
+    for imgs, masks in train_loader:
+        optimizer_pretrain.zero_grad()
         
-#         t1=time.time()
-#         with torch.no_grad():
+        t1=time.time()
+        with torch.no_grad():
 
-#             #Send psudo masks & imgs to cpu
-#             p_masks = masks
-#             imgs = imgs
+            #Send psudo masks & imgs to cpu
+            p_masks = masks
+            imgs = imgs
 
-#             #get classwise patch list
-#             patch_list = _get_patches(
-#                 imgs, p_masks,
-#                 classes=num_classes,
-#                 background=True,
-#                 img_size=img_size,
-#                 patch_size=contrastive_batch_size
-#             )
+            #get classwise patch list
+            patch_list = _get_patches(
+                imgs, p_masks,
+                classes=num_classes,
+                background=True,
+                img_size=img_size,
+                patch_size=contrastive_batch_size
+            )
 
-#             #stochastic approximation filtering and threshold update
-#             #qualified_patch_list = stochastic_approx.update(patch_list)
-#             qualified_patch_list = patch_list
+            #stochastic approximation filtering and threshold update
+            #qualified_patch_list = stochastic_approx.update(patch_list)
+            qualified_patch_list = patch_list
 
-#             #make augmentations for teacher model
-#             augmented_patch_list = batch_augment(qualified_patch_list,contrastive_batch_size)
-
-
-#             #convert to tensor
-#             aug_tensor_patch_list=[]
-#             qualified_tensor_patch_list=[]
-#             for i in range(len(augmented_patch_list)):
-#                 if augmented_patch_list[i] is not None:
-#                     aug_tensor_patch_list.append(torch.tensor(augmented_patch_list[i]))
-#                     qualified_tensor_patch_list.append(torch.tensor(qualified_patch_list[i]))
-#                 else:
-#                     aug_tensor_patch_list.append(None)
-#                     qualified_tensor_patch_list.append(None)
+            #make augmentations for teacher model
+            augmented_patch_list = batch_augment(qualified_patch_list,contrastive_batch_size)
 
 
-#         #get embeddings of qualified patches through student model
-#         model=model.train()
-#         model.module.contrast=True
-#         student_emb_list = get_embeddings(model,qualified_tensor_patch_list,True)
+            #convert to tensor
+            aug_tensor_patch_list=[]
+            qualified_tensor_patch_list=[]
+            for i in range(len(augmented_patch_list)):
+                if augmented_patch_list[i] is not None:
+                    aug_tensor_patch_list.append(torch.tensor(augmented_patch_list[i]))
+                    qualified_tensor_patch_list.append(torch.tensor(qualified_patch_list[i]))
+                else:
+                    aug_tensor_patch_list.append(None)
+                    qualified_tensor_patch_list.append(None)
 
-#         #get embeddings of augmented patches through teacher model
-#         teacher_model.train()
-#         teacher_model.contrast = True
-#         teacher_embedding_list = get_embeddings(teacher_model,aug_tensor_patch_list,False)
 
-#         #enqueue these
-#         embd_queues.enqueue(teacher_embedding_list)
+        #get embeddings of qualified patches through student model
+        model=model.train()
+        model.module.contrast=True
+        student_emb_list = get_embeddings(model,qualified_tensor_patch_list,True)
 
-#         #calculate PCGJCL loss
-#         PCGJCL_loss = PCGJCL_GPU(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096)        
-#         print('PCGJCL_loss: ', PCGJCL_loss.item())
+        #get embeddings of augmented patches through teacher model
+        teacher_model.train()
+        teacher_model.contrast = True
+        teacher_embedding_list = get_embeddings(teacher_model,aug_tensor_patch_list,False)
+
+        #enqueue these
+        embd_queues.enqueue(teacher_embedding_list)
+
+        #calculate PCGJCL loss
+        PCGJCL_loss = PCGJCL_GPU(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096)        
+        print('PCGJCL_loss: ', PCGJCL_loss.item())
         
-#         #calculate supervied loss
-#         imgs, masks =imgs.to(dev), masks.to(dev)
-#         model.module.contrast=False
-#         out = model(imgs)
+        #calculate supervied loss
+        imgs, masks =imgs.to(dev), masks.to(dev)
+        model.module.contrast=False
+        out = model(imgs)
         
-#         supervised_loss = cross_entropy_loss(out,masks)
-#         print('supervised_loss: ', supervised_loss.item())
-#         miou, accuracy, dice = calculate_metrics(out, masks, num_classes)
-#         print(f"mIoU: {miou}, Accuracy: {accuracy}, Dice: {dice}")
-#         print(f"Training - outputs: min {out.min().item()}, max {out.max().item()}, mean {out.mean().item()}")
+        supervised_loss = cross_entropy_loss(out,masks)
+        print('supervised_loss: ', supervised_loss.item())
+        miou, accuracy, dice = calculate_metrics(out, masks, num_classes)
+        print(f"mIoU: {miou}, Accuracy: {accuracy}, Dice: {dice}")
+        print(f"Training - outputs: min {out.min().item()}, max {out.max().item()}, mean {out.mean().item()}")
 
-#         #total loss
-#         PCGJCL_loss = PCGJCL_loss.to(dev)
-#         loss = supervised_loss + ContrastieWeights*PCGJCL_loss
+        #total loss
+        PCGJCL_loss = PCGJCL_loss.to(dev)
+        loss = supervised_loss + ContrastieWeights*PCGJCL_loss
         
-#         total_t_contrastive_loss += PCGJCL_loss.item()
-#         total_t_supervised_loss += supervised_loss.item()
-#         epoch_t_loss+=loss.item()
+        total_t_contrastive_loss += PCGJCL_loss.item()
+        total_t_supervised_loss += supervised_loss.item()
+        epoch_t_loss+=loss.item()
         
-#         total_t_miou += miou 
-#         total_t_accuracy += accuracy 
-#         total_t_dice += dice 
+        total_t_miou += miou 
+        total_t_accuracy += accuracy 
+        total_t_dice += dice 
 
-#         #backpropagate
-#         loss.backward()
-#         optimizer_pretrain.step()
+        #backpropagate
+        loss.backward()
+        optimizer_pretrain.step()
 
-#         for param_stud, param_teach in zip(model.parameters(),teacher_model.parameters()):
-#             param_teach.data.copy_(0.001*param_stud + 0.999*param_teach)
+        for param_stud, param_teach in zip(model.parameters(),teacher_model.parameters()):
+            param_teach.data.copy_(0.001*param_stud + 0.999*param_teach)
 
-#         #Extras
-#         t2=time.time()
-#         print('step ', step, 'loss: ',loss, ' & time: ',t2-t1)
-#         step+=1  
+        #Extras
+        t2=time.time()
+        print('step ', step, 'loss: ',loss, ' & time: ',t2-t1)
+        step+=1  
     
-#     avg_t_epoch_loss = epoch_t_loss / len(train_loader)
-#     avg_t_supervised_loss = total_t_supervised_loss / len(train_loader)
-#     avg_t_contrastive_loss = total_t_contrastive_loss / len(train_loader)
-#     avg_t_miou = total_t_miou / len(train_loader)
-#     avg_t_accuracy = total_t_accuracy / len(train_loader)
-#     avg_t_dice = total_t_dice / len(train_loader)
+    avg_t_epoch_loss = epoch_t_loss / len(train_loader)
+    avg_t_supervised_loss = total_t_supervised_loss / len(train_loader)
+    avg_t_contrastive_loss = total_t_contrastive_loss / len(train_loader)
+    avg_t_miou = total_t_miou / len(train_loader)
+    avg_t_accuracy = total_t_accuracy / len(train_loader)
+    avg_t_dice = total_t_dice / len(train_loader)
     
-#     reset_bn_stats(model, train_loader)
-#     val_loss, val_miou, val_accuracy, val_dice = validate(model, val_loader, cross_entropy_loss, num_classes)
+    reset_bn_stats(model, train_loader)
+    val_loss, val_miou, val_accuracy, val_dice = validate(model, val_loader, cross_entropy_loss, num_classes)
 
-#     save_loss(
-#         t_total_loss = f"{avg_t_epoch_loss:.4f}", 
-#         t_supervised_loss=f"{avg_t_supervised_loss:.4f}", 
-#         t_contrastive_loss=f"{avg_t_contrastive_loss:.4f}", 
-#         t_miou = f"{avg_t_miou:.4f}",    
-#         t_accuracy = f"{avg_t_accuracy:.4f}",
-#         t_dice = f"{avg_t_dice:.4f}",
-#         t_consistency_loss = 0 ,
-#         v_total_loss = f"{val_loss:.4f}", 
-#         v_supervised_loss = f"{val_loss:.4f}", 
-#         v_miou = f"{val_miou:.4f}",    
-#         v_accuracy = f"{val_accuracy:.4f}",
-#         v_dice = f"{val_dice:.4f}",
-#         v_contrastive_loss=0, 
-#         v_consistency_loss=0, 
-#         filename=supervised_loss_path
-#     )
+    save_loss(
+        t_total_loss = f"{avg_t_epoch_loss:.4f}", 
+        t_supervised_loss=f"{avg_t_supervised_loss:.4f}", 
+        t_contrastive_loss=f"{avg_t_contrastive_loss:.4f}", 
+        t_miou = f"{avg_t_miou:.4f}",    
+        t_accuracy = f"{avg_t_accuracy:.4f}",
+        t_dice = f"{avg_t_dice:.4f}",
+        t_consistency_loss = 0 ,
+        v_total_loss = f"{val_loss:.4f}", 
+        v_supervised_loss = f"{val_loss:.4f}", 
+        v_miou = f"{val_miou:.4f}",    
+        v_accuracy = f"{val_accuracy:.4f}",
+        v_dice = f"{val_dice:.4f}",
+        v_contrastive_loss=0, 
+        v_consistency_loss=0, 
+        filename=supervised_loss_path
+    )
     
-#     if (c_epochs + 1) % save_interval == 0:
-#         torch.save(model,f"{save_model_path}{c_epochs}-s.pth")
-#         torch.save(teacher_model,f"{save_model_path}{c_epochs}-t.pth")
+    if (c_epochs + 1) % save_interval == 0:
+        torch.save(model,f"{save_model_path}{c_epochs}-s.pth")
+        torch.save(teacher_model,f"{save_model_path}{c_epochs}-t.pth")
 
 
 # %%
