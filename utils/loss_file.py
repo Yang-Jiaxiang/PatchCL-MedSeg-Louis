@@ -51,8 +51,6 @@ def save_loss(
         new_df = pd.DataFrame(data)
         df = pd.concat([df, new_df], ignore_index=True)
         df.to_csv(filename, index=False)
-        print(f"Appended new data and saved to existing file: {filename}")
-
 
 def check_loss_file(filename):
     if os.path.exists(filename):

@@ -14,27 +14,26 @@ class Network(nn.Module):
             activation=None
         )
         self.encoder = self.seg_model.encoder
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))  # Change the output size of avgpool to (1, 1)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1)) 
         self.fc = nn.Sequential(
-            nn.Linear(512, 512),  # Adjust input size to match the new output of avgpool
-            nn.InstanceNorm1d(512),
+            nn.Linear(512, 512),
+            nn.LayerNorm(512),
             nn.ReLU(),
             nn.Linear(512, embedding_size),
-            nn.InstanceNorm1d(embedding_size)
+            nn.LayerNorm(embedding_size)
         )
         self.contrast = False
 
-    def forward(self,x):
-        if self.contrast is True:
-            x =self.encoder(x)
+    def forward(self, x):
+        if self.contrast:
+            x = self.encoder(x)
             x = x[-1]  # Taking the last feature map only
             x = self.avgpool(x)
             x = torch.flatten(x, 1)
-            x =self.fc(x)
+            x = self.fc(x)
             return x
         else:
             x = self.seg_model(x)
-#             x = torch.sigmoid(x)  # Apply sigmoid to the output of seg_model
             return x
 
 # +

@@ -101,6 +101,8 @@ class PascalVOCDataset(Dataset):
             one_hot_mask[0, mask == 0] = 1
             one_hot_mask[1, mask == 1] = 1
             mask = one_hot_mask # (2, 244, 244)
+            mask = torch.from_numpy(mask).float()
+            
         else:
             mask = None
             

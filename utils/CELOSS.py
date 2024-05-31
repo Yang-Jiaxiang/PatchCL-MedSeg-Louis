@@ -6,9 +6,8 @@ dev=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class CE_loss(smp.utils.losses.CrossEntropyLoss):
     def __init__(self, num_classes, image_size):
         super(CE_loss,self).__init__()
-        super(CE_loss, self).__init__()
-        self.num_classes = num_classes
-        self.image_size = image_size
+        # self.num_classes = num_classes
+        # self.image_size = image_size
         self.ce_loss = smp.utils.losses.CrossEntropyLoss()
         self.matrix_mult = torch.ones(num_classes, image_size, image_size) * torch.arange(num_classes).view(num_classes, 1, 1)
 
