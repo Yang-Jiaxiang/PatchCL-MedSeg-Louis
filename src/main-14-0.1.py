@@ -26,8 +26,7 @@ ContrastieWeights = 0.1 # PatchCL loss weight
 save_interval = 2  # 每 10 輪儲存一次
 
 parameter = f'Resnet18_Image-{img_size}_patchSize-{contrastive_batch_size}_ContrastieWeights-{ContrastieWeights}'
-supervised_loss_path = f'output/supervised pre training_loss-{parameter}.csv'
-
+save_loss_path = f'output/loss_{contrastive_batch_size}-{ContrastieWeights}'
 save_loss_model_path = f'output/{contrastive_batch_size}-{ContrastieWeights}'
 
 
@@ -94,7 +93,7 @@ def validate(model, val_loader, criterion, num_classes):
 
     return val_loss, val_miou, val_accuracy, val_dice
 
-def train(model, teacher_model, train_loader, val_loader, optimizer, criterion, dev, epochs, step_name, num_classes, img_size, contrastive_batch_size, ContrastieWeights, supervised_loss_path):
+def train(model, teacher_model, train_loader, val_loader, optimizer, criterion, dev, epochs, step_name, num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path):
     embd_queues = Embedding_Queues(num_classes)
 
     for c_epochs in range(epochs):
@@ -198,7 +197,7 @@ def train(model, teacher_model, train_loader, val_loader, optimizer, criterion, 
             v_dice = f"{val_dice:.4f}",
             v_contrastive_loss=0, 
             v_consistency_loss=0, 
-            filename= f'{save_loss_path}/loss_{step_name}.csv'
+            filename= f'{save_loss_path}_{step_name}.csv'
         )
 
         if (c_epochs) % save_interval == 0:
@@ -320,7 +319,7 @@ def main():
     # <====================== Supervised training with labeled images (SupOnly) ======================>
     print('\n\n\n================> Total stage 1/7: Supervised training on labeled images (SupOnly)')
     supervised_epoch = 100
-    model, teacher_model = train(model, teacher_model, train_loader, val_loader, optimizer_pretrain, cross_entropy_loss, dev, supervised_epoch, "supervised-Pretraining", num_classes, img_size, contrastive_batch_size, ContrastieWeights, supervised_loss_path)
+    model, teacher_model = train(model, teacher_model, train_loader, val_loader, optimizer_pretrain, cross_entropy_loss, dev, supervised_epoch, "supervised-Pretraining", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
 
     # <====================== Sgenerate pseudo labels ======================>
     print('\n\n\n================> Total stage 2/7: Select reliable images for the 1st stage re-training')
@@ -343,7 +342,7 @@ def main():
     # <====================== Semi-supervised training with reliable images (SSL) ======================>
     print('\n\n\n================> Total stage 4/7: Semi-supervised training with reliable images (SSL)')
     SSL_step1_epoch = 100
-    model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_step1_epoch, "SSL-reliable-st1", num_classes, img_size, contrastive_batch_size, ContrastieWeights, supervised_loss_path)
+    model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_step1_epoch, "SSL-reliable-st1", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
 
     # <====================== Generate pseudo labels for remaining images ======================>
     print('\n\n\n================> Total stage 5/7: Generate pseudo labels for remaining images')
@@ -373,7 +372,7 @@ def main():
     # <====================== Semi-supervised training with reliable images (SSL) ======================>
     print('\n\n\n================> Total stage 7/7: Semi-supervised training with reliable images (SSL)')
     SSL_step2_epoch = 100
-    model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_step2_epoch, "SSL-remaining-st2", num_classes, img_size, contrastive_batch_size, ContrastieWeights, supervised_loss_path)
+    model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_step2_epoch, "SSL-remaining-st2", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
 
 
 if __name__ == '__main__':
