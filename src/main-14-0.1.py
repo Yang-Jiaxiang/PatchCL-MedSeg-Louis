@@ -233,6 +233,9 @@ def select_reliable(model, teacher_model, data_loader, num_classes, threshold=0.
 
     model.eval()
     teacher_model.eval()
+    
+    model.module.contrast = False
+    teacher_model.module.contrast = False
 
     reliable_images = []
     reliable_outputs = []
