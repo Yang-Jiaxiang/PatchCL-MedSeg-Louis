@@ -93,10 +93,10 @@ def validate(model, val_loader, criterion, num_classes):
 
     return val_loss, val_miou, val_accuracy, val_dice
 
-def train(model, teacher_model, train_loader, val_loader, optimizer, criterion, dev, epochs, step_name, num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path):
+def train(model, teacher_model, train_loader, val_loader, optimizer, criterion, dev, start_epochs, end_epochs, step_name, num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path):
     embd_queues = Embedding_Queues(num_classes)
 
-    for c_epochs in range(epochs):
+    for c_epochs in range(start_epochs,end_epochs):
         c_epochs += 1
 
         epoch_t_loss = 0
@@ -108,7 +108,7 @@ def train(model, teacher_model, train_loader, val_loader, optimizer, criterion, 
         accuracy_metric = Accuracy(threshold=0.5)
         miou_metric = MeanIOU(threshold=0.5)
 
-        for imgs, masks in tqdm(train_loader, desc=f"Epoch {c_epochs}/{epochs}", unit="batch"):
+        for imgs, masks in tqdm(train_loader, desc=f"Epoch {c_epochs}/{end_epochs}", unit="batch"):
             optimizer.zero_grad()
             start_time = time.time()  # step 開始時間
 
@@ -321,15 +321,16 @@ def main():
 
     # <====================== Supervised training with labeled images (SupOnly) ======================>
     print('\n\n\n================> Total stage 1/7: Supervised training on labeled images (SupOnly)')
-    supervised_epoch = 100
-    model, teacher_model = train(model, teacher_model, train_loader, val_loader, optimizer_pretrain, cross_entropy_loss, dev, supervised_epoch, "supervised-Pretraining", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
+    supervised_start_epoch = 0
+    supervised_end_epoch = 100
+    # model, teacher_model = train(model, teacher_model, train_loader, val_loader, optimizer_pretrain, cross_entropy_loss, dev, supervised_start_epoch, supervised_end_epoch, "supervised-Pretraining", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
 
     # <====================== Sgenerate pseudo labels ======================>
     print('\n\n\n================> Total stage 2/7: Select reliable images for the 1st stage re-training')
 
-    save_model_path = f"{save_loss_model_path}/model_supervised-Pretraining_{supervised_epoch}"
+    save_model_path = f"{save_loss_model_path}/model_supervised-Pretraining_{supervised_end_epoch}"
     # 重新加載模型
-    model, teacher_model = load_pretrained_model(model, teacher_model, save_model_path, supervised_epoch)
+    model, teacher_model = load_pretrained_model(model, teacher_model, save_model_path, supervised_end_epoch)
 
     # 篩選可靠的圖像和標籤
     reliable_dataset, remaining_dataset= select_reliable(model, teacher_model, unlabeled_loader, num_classes)
@@ -344,8 +345,9 @@ def main():
 
     # <====================== Semi-supervised training with reliable images (SSL) ======================>
     print('\n\n\n================> Total stage 4/7: Semi-supervised training with reliable images (SSL)')
-    SSL_step1_epoch = 100
-    model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_step1_epoch, "SSL-reliable-st1", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
+    SSL_start_epoch = 44
+    SSL_end_epoch = 100
+    model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_start_epoch, SSL_end_epoch, "SSL-reliable-st1", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
 
     # <====================== Generate pseudo labels for remaining images ======================>
     print('\n\n\n================> Total stage 5/7: Generate pseudo labels for remaining images')
@@ -374,8 +376,9 @@ def main():
 
     # <====================== Semi-supervised training with reliable images (SSL) ======================>
     print('\n\n\n================> Total stage 7/7: Semi-supervised training with reliable images (SSL)')
-    SSL_step2_epoch = 100
-    model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_step2_epoch, "SSL-remaining-st2", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
+    SSL_step2_start_epoch = 0
+    SSL_step2_end_epoch = 100
+    model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_step2_start_epoch, SSL_step2_end_epoch, "SSL-remaining-st2", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
 
 
 if __name__ == '__main__':
