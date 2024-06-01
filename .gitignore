@@ -1,3 +1,5 @@
 ACDC/*
 *.pth
 Loss_curve.csv
+*.pyc
+__pycache__/
