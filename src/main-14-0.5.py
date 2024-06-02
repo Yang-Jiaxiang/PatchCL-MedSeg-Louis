@@ -17,12 +17,12 @@ base_path = '/home/u5169119/PatchCL-MedSeg-jiyu'
 dataset_path = '/home/u5169119/dataset/0_data_dataset_voc_950_kidney'
 output_dir = 'dataset/splits/kidney'
 
-contrastive_batch_size = 7
+contrastive_batch_size = 14
 embedding_size = 128
 img_size = 224
 batch_size = 16
 num_classes = 2
-ContrastieWeights = 0.1 # PatchCL loss weight
+ContrastieWeights = 0.5 # PatchCL loss weight
 save_interval = 2  # 每 10 輪儲存一次
 
 parameter = f'Resnet18_Image-{img_size}_patchSize-{contrastive_batch_size}_ContrastieWeights-{ContrastieWeights}'
@@ -348,7 +348,7 @@ def main():
     # <====================== Semi-supervised training with reliable images (SSL) ======================>
     print('\n\n\n================> Total stage 4/7: Semi-supervised training with reliable images (SSL)')
     SSL_start_epoch = 0
-    SSL_end_epoch = 200
+    SSL_end_epoch = 100
     model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_start_epoch, SSL_end_epoch, "SSL-reliable-st1", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
 
     # <====================== Generate pseudo labels for remaining images ======================>

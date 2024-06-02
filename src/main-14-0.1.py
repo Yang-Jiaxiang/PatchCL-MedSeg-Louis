@@ -13,8 +13,8 @@ from tqdm import tqdm
 from torchvision import transforms
 
 
-base_path = '/home/louis/Documents/project/PatchCL-MedSeg-jiyu'
-dataset_path = '/home/louis/Documents/project/dataset/0_data_dataset_voc_950_kidney'
+base_path = '/home/u5169119/PatchCL-MedSeg-jiyu'
+dataset_path = '/home/u5169119/dataset/0_data_dataset_voc_950_kidney'
 output_dir = 'dataset/splits/kidney'
 
 contrastive_batch_size = 14
@@ -47,7 +47,7 @@ from utils.patch_utils import _get_patches
 from utils.aug_utils import batch_augment
 from utils.get_embds import get_embeddings
 from utils.const_reg import consistency_cost
-from utils.plg_loss import PCGJCL
+from utils.plg_loss import PCGJCL, simple_PCGJCL
 from utils.torch_poly_lr_decay import PolynomialLRDecay
 from utils.loss_file import save_loss
 from utils_performance import DiceCoefficient, Accuracy, MeanIOU
@@ -139,7 +139,7 @@ def train(model, teacher_model, train_loader, val_loader, optimizer, criterion, 
             embd_queues.enqueue(teacher_embedding_list)
 
             # Calculate PCGJCL loss
-            PCGJCL_loss = PCGJCL(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096)    
+            PCGJCL_loss = simple_PCGJCL(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096)    
 
             # Calculate supervised loss
             imgs, masks = imgs.to(dev), masks.to(dev)
@@ -323,7 +323,7 @@ def main():
     print('\n\n\n================> Total stage 1/7: Supervised training on labeled images (SupOnly)')
     supervised_start_epoch = 0
     supervised_end_epoch = 100
-    # model, teacher_model = train(model, teacher_model, train_loader, val_loader, optimizer_pretrain, cross_entropy_loss, dev, supervised_start_epoch, supervised_end_epoch, "supervised-Pretraining", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
+    model, teacher_model = train(model, teacher_model, train_loader, val_loader, optimizer_pretrain, cross_entropy_loss, dev, supervised_start_epoch, supervised_end_epoch, "supervised-Pretraining", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
 
     # <====================== Sgenerate pseudo labels ======================>
     print('\n\n\n================> Total stage 2/7: Select reliable images for the 1st stage re-training')
@@ -334,7 +334,9 @@ def main():
 
     # 篩選可靠的圖像和標籤
     reliable_dataset, remaining_dataset= select_reliable(model, teacher_model, unlabeled_loader, num_classes)
-
+    
+    print('reliable_dataset:', len(reliable_dataset))
+    print('remaining_dataset:', len(remaining_dataset))
     # <================================ Concat dataset =================================>
     print('\n\n\n================> Total stage 3/7: Concat train_dataset remaining_dataset')
     # 合併 train_dataset 和 reliable_dataset
@@ -345,7 +347,7 @@ def main():
 
     # <====================== Semi-supervised training with reliable images (SSL) ======================>
     print('\n\n\n================> Total stage 4/7: Semi-supervised training with reliable images (SSL)')
-    SSL_start_epoch = 44
+    SSL_start_epoch = 0
     SSL_end_epoch = 100
     model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_start_epoch, SSL_end_epoch, "SSL-reliable-st1", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
 
