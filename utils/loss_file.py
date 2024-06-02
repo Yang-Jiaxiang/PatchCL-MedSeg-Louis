@@ -18,6 +18,7 @@ def save_loss(
     v_miou=0,    
     v_accuracy=0,
     v_dice=0,
+    PatchCL_weight=0,
     filename='/tf/PatchCL-MedSeg-pioneeryj/loss_record.csv'
 ):
     # 创建一个包含损失值和当前时间的字典
@@ -36,6 +37,7 @@ def save_loss(
         'v_miou':[v_miou],
         'v_accuracy':[v_accuracy],
         'v_dice':[v_dice],
+        'PatchCL_weight':[PatchCL_weight],
         'time': [datetime.now().strftime('%Y-%m-%d %H:%M:%S')]
     }
     
