@@ -202,15 +202,14 @@ def train(model, teacher_model, train_loader, val_loader, optimizer, criterion, 
 
         if (c_epochs) % save_interval == 0:
             torch.save(model, f"{save_loss_model_path}/model_{step_name}_{c_epochs}-s.pth")
-            torch.save(teacher_model, f"{save_loss_model_path}/model_{step_name}_{c_epochs}-t.pth")
     
     return model, teacher_model
 
 
 
 def load_pretrained_model(model, teacher_model, save_model_path, epoch):
-    model_path = f"{save_model_path}-s.pth"
-    teacher_model_path = f"{save_model_path}-t.pth"
+    model_path = f"{save_model_path}{epoch}-s.pth"
+    teacher_model_path = f"{save_model_path}{epoch-10}-s.pth"
 
 
     model = torch.load(model_path)
@@ -323,18 +322,20 @@ def main():
     print('\n\n\n================> Total stage 1/7: Supervised training on labeled images (SupOnly)')
     supervised_start_epoch = 0
     supervised_end_epoch = 100
-    model, teacher_model = train(model, teacher_model, train_loader, val_loader, optimizer_pretrain, cross_entropy_loss, dev, supervised_start_epoch, supervised_end_epoch, "supervised-Pretraining", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
+#     model, teacher_model = train(model, teacher_model, train_loader, val_loader, optimizer_pretrain, cross_entropy_loss, dev, supervised_start_epoch, supervised_end_epoch, "supervised-Pretraining", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
 
     # <====================== Sgenerate pseudo labels ======================>
     print('\n\n\n================> Total stage 2/7: Select reliable images for the 1st stage re-training')
 
-    save_model_path = f"{save_loss_model_path}/model_supervised-Pretraining_{supervised_end_epoch}"
+    save_model_path = f"{save_loss_model_path}/model_supervised-Pretraining_"
     # 重新加載模型
     model, teacher_model = load_pretrained_model(model, teacher_model, save_model_path, supervised_end_epoch)
 
     # 篩選可靠的圖像和標籤
     reliable_dataset, remaining_dataset= select_reliable(model, teacher_model, unlabeled_loader, num_classes)
-
+    
+    print('reliable_dataset:', len(reliable_dataset))
+    print('remaining_dataset:', len(remaining_dataset))
     # <================================ Concat dataset =================================>
     print('\n\n\n================> Total stage 3/7: Concat train_dataset remaining_dataset')
     # 合併 train_dataset 和 reliable_dataset
@@ -342,9 +343,7 @@ def main():
 
     # 使用新的 combined_dataset 創建新的 DataLoader
     combined_loader = DataLoader(combined_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
-    print('reliable_dataset:', len(reliable_dataset))
-    print('remaining_dataset:', len(remaining_dataset))
-    
+
     # <====================== Semi-supervised training with reliable images (SSL) ======================>
     print('\n\n\n================> Total stage 4/7: Semi-supervised training with reliable images (SSL)')
     SSL_start_epoch = 0
