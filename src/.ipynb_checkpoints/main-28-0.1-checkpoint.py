@@ -348,29 +348,26 @@ def main():
     print('\n\n\n================> Total stage 4/7: Semi-supervised training with reliable images (SSL)')
     SSL_start_epoch = 0
     SSL_end_epoch = 100
-    model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_start_epoch, SSL_end_epoch, "SSL-reliable-st1", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
+#     model, teacher_model = train(model, teacher_model, combined_loader, val_loader, optimizer_ssl, cross_entropy_loss, dev, SSL_start_epoch, SSL_end_epoch, "SSL-reliable-st1", num_classes, img_size, contrastive_batch_size, ContrastieWeights, save_loss_path)
 
     # <====================== Generate pseudo labels for remaining images ======================>
     print('\n\n\n================> Total stage 5/7: Generate pseudo labels for remaining images')
 
     # 如果沒有剩餘的圖像，則跳出 main function 
     if remaining_dataset is None:
+        print("remaining_dataset is None")
         return
-
-    remaining_loader = DataLoader(remaining_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-    
-
-    save_model_path = f"{save_loss_model_path}/model_SSL-reliable-st1_{epoch}"
+    if len(remaining_dataset) < batch_size:
+        print("remaining_dataset < batch size")
+        return
+    save_model_path = f"{save_loss_model_path}/model_SSL-reliable-st1_"
     # 重新加載模型
-    model, teacher_model = load_pretrained_model(model, teacher_model, save_model_path, SSL_step1_epoch)
-
-    # 篩選可靠的圖像和標籤
-    reliable_dataset, remaining_dataset = select_reliable(model, teacher_model, remaining_loader, num_classes)
-
+    model, teacher_model = load_pretrained_model(model, teacher_model, save_model_path, SSL_end_epoch)
+    
     # <================================ Concat dataset =================================>
     print('\n\n\n================> Total stage 6/7: Concat train_dataset remaining_dataset')
     # 合併 train_dataset 和 reliable_dataset
-    combined_dataset = ConcatDataset([train_dataset, reliable_dataset])
+    combined_dataset = ConcatDataset([train_dataset, remaining_dataset])
 
     # 使用新的 combined_dataset 創建新的 DataLoader
     combined_loader = DataLoader(combined_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
