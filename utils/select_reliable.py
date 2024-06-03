@@ -1,6 +1,11 @@
-import torch 
+import torch
+import torch.nn as nn
+from tqdm import tqdm
+from torch.utils.data import TensorDataset
 
+# +
 dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def select_reliable(model, teacher_model, data_loader, num_classes, threshold=0.1, device='cuda'):
     criterion = torch.nn.functional.cross_entropy
 
