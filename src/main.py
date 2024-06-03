@@ -27,7 +27,7 @@ def parse_args():
     
     return parser.parse_args()
 
-base_path = '/home/S312112021/PatchCL-MedSeg-jiyu'
+base_path = '/home/u5169119/PatchCL-MedSeg-jiyu'
 voc_mask_color_map = [
     [0, 0, 0], # _background
     [128, 0, 0] # kidney
@@ -44,7 +44,6 @@ from utils.CELOSS import CE_loss
 from utils.patch_utils import _get_patches
 from utils.aug_utils import batch_augment
 from utils.get_embds import get_embeddings
-from utils.const_reg import consistency_cost
 from utils.plg_loss import simple_PCGJCL
 from utils.torch_poly_lr_decay import PolynomialLRDecay
 from utils.loss_file import save_loss
@@ -96,7 +95,7 @@ def get_dynamic_weight(epoch, end_epochs):
     start_weight = 0.1
     max_weight = 1.0
     num_intervals = end_epochs // interval
-    weight_increment = (max_weight - start_weight) / num_intervals
+    weight_increment = (max_weight - start_weight) / nsum_intervals
 
     if epoch < interval:
         weight = start_weight
@@ -105,7 +104,27 @@ def get_dynamic_weight(epoch, end_epochs):
     
     return weight
 
-def train(model, teacher_model, train_loader, val_loader, optimizer, criterion, dev, start_epochs, end_epochs, step_name, num_classes, img_size, batch_size, patch_size, embedding_size, ContrastieWeights, save_interval, save_loss_path):
+def train(
+    model,
+    teacher_model, 
+    train_loader, 
+    val_loader, 
+    optimizer, 
+    criterion, 
+    dev, 
+    start_epochs, 
+    end_epochs, 
+    step_name, 
+    num_classes, 
+    img_size, 
+    batch_size, 
+    patch_size, 
+    embedding_size, 
+    ContrastieWeights, 
+    save_interval, 
+    save_loss_model_path, 
+    save_loss_path
+):
     embd_queues = Embedding_Queues(num_classes)
 
     for c_epochs in range(start_epochs,end_epochs):
@@ -237,6 +256,7 @@ def to_one_hot(tensor, num_classes):
 
 
 
+# +
 def main():
     args = parse_args()
     dataset_path = args.dataset_path
@@ -295,26 +315,27 @@ def main():
     supervised_start_epoch = 0
     supervised_end_epoch = 100
     
-    model, teacher_model = train(
-        model, 
-        teacher_model, 
-        train_loader,
-        val_loader, 
-        optimizer_pretrain, 
-        cross_entropy_loss, 
-        dev, 
-        supervised_start_epoch, 
-        supervised_end_epoch, 
-        "supervised-Pretraining", 
-        num_classes, 
-        img_size, 
-        batch_size, 
-        patch_size, 
-        embedding_size,
-        ContrastieWeights,
-        save_interval,
-        save_loss_path
-    )
+#     model, teacher_model = train(
+#         model, 
+#         teacher_model, 
+#         train_loader,
+#         val_loader, 
+#         optimizer_pretrain, 
+#         cross_entropy_loss, 
+#         dev, 
+#         supervised_start_epoch, 
+#         supervised_end_epoch, 
+#         "supervised-Pretraining", 
+#         num_classes, 
+#         img_size, 
+#         batch_size, 
+#         patch_size, 
+#         embedding_size,
+#         ContrastieWeights,
+#         save_interval,
+#         save_loss_model_path,
+#         save_loss_path
+#     )
 
     print('\n\n\n================> Total stage 2/7: Select reliable images for the 1st stage re-training')
     save_model_path = f"{save_loss_model_path}/model_supervised-Pretraining_"
@@ -349,6 +370,7 @@ def main():
         embedding_size,
         ContrastieWeights,
         save_interval,
+        save_loss_model_path,
         save_loss_path
     )
     
@@ -388,10 +410,14 @@ def main():
         embedding_size,
         ContrastieWeights,
         save_interval,
+        save_loss_model_path,
         save_loss_path
     )
     
     print('\n\n\n================> Finish')
+
+
+# -
 
 if __name__ == '__main__':
     main()
