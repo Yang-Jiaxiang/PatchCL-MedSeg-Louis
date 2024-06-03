@@ -95,7 +95,7 @@ def get_dynamic_weight(epoch, end_epochs):
     start_weight = 0.1
     max_weight = 1.0
     num_intervals = end_epochs // interval
-    weight_increment = (max_weight - start_weight) / nsum_intervals
+    weight_increment = (max_weight - start_weight) / num_intervals
 
     if epoch < interval:
         weight = start_weight
