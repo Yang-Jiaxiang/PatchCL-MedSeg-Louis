@@ -27,7 +27,7 @@ def parse_args():
     
     return parser.parse_args()
 
-base_path = '/home/S312112021/PatchCL-MedSeg-jiyu'
+base_path = '/home/u5169119/PatchCL-MedSeg-jiyu'
 voc_mask_color_map = [
     [0, 0, 0], # _background
     [128, 0, 0] # kidney
@@ -240,6 +240,9 @@ def train(
 def load_pretrained_model(model, teacher_model, save_model_path, epoch):
     model_path = f"{save_model_path}{epoch}-s.pth"
     teacher_model_path = f"{save_model_path}{epoch-10}-s.pth"
+    print('model_path: ', model_path)
+    print('teacher_model_path: ', teacher_model_path)
+    print("")
 
     model = torch.load(model_path)
     teacher_model = torch.load(teacher_model_path)
@@ -315,27 +318,27 @@ def main():
     supervised_start_epoch = 0
     supervised_end_epoch = 100
     
-    model, teacher_model = train(
-        model, 
-        teacher_model, 
-        train_loader,
-        val_loader, 
-        optimizer_pretrain, 
-        cross_entropy_loss, 
-        dev, 
-        supervised_start_epoch, 
-        supervised_end_epoch, 
-        "supervised-Pretraining", 
-        num_classes, 
-        img_size, 
-        batch_size, 
-        patch_size, 
-        embedding_size,
-        ContrastieWeights,
-        save_interval,
-        save_loss_model_path,
-        save_loss_path
-    )
+#     model, teacher_model = train(
+#         model, 
+#         teacher_model, 
+#         train_loader,
+#         val_loader, 
+#         optimizer_pretrain, 
+#         cross_entropy_loss, 
+#         dev, 
+#         supervised_start_epoch, 
+#         supervised_end_epoch, 
+#         "supervised-Pretraining", 
+#         num_classes, 
+#         img_size, 
+#         batch_size, 
+#         patch_size, 
+#         embedding_size,
+#         ContrastieWeights,
+#         save_interval,
+#         save_loss_model_path,
+#         save_loss_path
+#     )
 
     print('\n\n\n================> Total stage 2/7: Select reliable images for the 1st stage re-training')
     save_model_path = f"{save_loss_model_path}/model_supervised-Pretraining_"
@@ -343,7 +346,8 @@ def main():
     reliable_dataset, remaining_dataset= select_reliable(model, teacher_model, unlabeled_loader, num_classes)
     print('reliable_dataset:', len(reliable_dataset))
     print('remaining_dataset:', len(remaining_dataset))
-
+    print("")
+    
     print('\n\n\n================> Total stage 3/7: Concat train_dataset remaining_dataset')
     combined_dataset = ConcatDataset([train_dataset, reliable_dataset])
     combined_loader = DataLoader(combined_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
@@ -355,7 +359,7 @@ def main():
     model, teacher_model = train(
         model, 
         teacher_model, 
-        train_loader,
+        combined_loader,
         val_loader, 
         optimizer_pretrain, 
         cross_entropy_loss, 
