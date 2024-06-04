@@ -27,13 +27,10 @@ def parse_args():
     
     return parser.parse_args()
 
-base_path = '/home/u5169119/PatchCL-MedSeg-jiyu'
 voc_mask_color_map = [
     [0, 0, 0], # _background
     [128, 0, 0] # kidney
 ]
-
-sys.path.append(base_path)
 
 from utils.transform import Transform
 from utils.stochastic_approx import StochasticApprox
@@ -48,7 +45,7 @@ from utils.plg_loss import simple_PCGJCL
 from utils.torch_poly_lr_decay import PolynomialLRDecay
 from utils.loss_file import save_loss
 from utils_performance import DiceCoefficient, Accuracy, MeanIOU
-from utils.select_reliable import select_reliable
+from utils.select_reliable import select_reliable, Label
 
 dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -314,7 +311,7 @@ def main():
     print('number of val_dataset: ', len(val_dataset))
     print('number of unlabeled_dataset: ', len(unlabeled_dataset))
 
-    print('\n\n\n================> Total stage 1/7: Supervised training on labeled images (SupOnly)')
+    print('\n\n\n================> Total stage 1/6: Supervised training on labeled images (SupOnly)')
     supervised_start_epoch = 0
     supervised_end_epoch = 100
     
@@ -340,19 +337,19 @@ def main():
 #         save_loss_path
 #     )
 
-    print('\n\n\n================> Total stage 2/7: Select reliable images for the 1st stage re-training')
+    print('\n\n\n================> Total stage 2/6: Select reliable images for the 1st stage re-training')
     save_model_path = f"{save_loss_model_path}/model_supervised-Pretraining_"
     model, teacher_model = load_pretrained_model(model, teacher_model, save_model_path, supervised_end_epoch)
     reliable_dataset, remaining_dataset= select_reliable(model, teacher_model, unlabeled_loader, num_classes)
     print('reliable_dataset:', len(reliable_dataset))
     print('remaining_dataset:', len(remaining_dataset))
     
-    print('\n\n\n================> Total stage 3/7: Concat train_dataset remaining_dataset')
+    print('\n\n\n================> Total stage 3/6: Concat train_dataset reliable_dataset')
     combined_dataset = ConcatDataset([train_dataset, reliable_dataset])
     combined_loader = DataLoader(combined_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     print("combined_dataset: ", len(combined_dataset))
     
-    print('\n\n\n================> Total stage 4/7: Semi-supervised training with reliable images (SSL)')
+    print('\n\n\n================> Total stage 4/6: Semi-supervised training with reliable images (SSL)')
     SSL_step1_start_epoch = 0
     SSL_step1_end_epoch = 100
     
@@ -378,28 +375,31 @@ def main():
 #         save_loss_path
 #     )
     
-    print('\n\n\n================> Total stage 5/7: Generate pseudo labels for remaining images')
+    print('\n\n\n================> Total stage 5/6: Generate pseudo labels for remaining images')
 
-    if remaining_dataset is None:
-        return
-
-    remaining_loader = DataLoader(remaining_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+    if len(remaining_dataset) < batch_size:
+        print("remaining_dataset < batch size")
+    
     save_model_path = f"{save_loss_model_path}/model_SSL-reliable-st1_"
     model, teacher_model = load_pretrained_model(model, teacher_model, save_model_path, SSL_step1_end_epoch)
-    reliable_dataset, remaining_dataset= select_reliable(model, teacher_model, remaining_loader, num_classes)
+    remaining_loader = DataLoader(remaining_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
     
-    print('\n\n\n================> Total stage 6/7: Concat train_dataset remaining_dataset')
-    combined_dataset = ConcatDataset([train_dataset, reliable_dataset])
-    combined_loader = DataLoader(combined_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
-
-    print('\n\n\n================> Total stage 7/7: Semi-supervised training with reliable images (SSL)')
+    remaining_label_dataset = Label(model, remaining_loader, num_classes, device=dev)
+    remaining_label_loader = DataLoader(remaining_label_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+    print("remaining_label_loader: ", len(remaining_label_loader))
+    
+    if len(remaining_label_loader) < 2:
+        print("remaining_label_loader < 2")
+        return
+    
+    print('\n\n\n================> Total stage 6/6: Semi-supervised training with reliable images (SSL)')
     SSL_step2_start_epoch = 0
     SSL_step2_end_epoch = 100
     
     model, teacher_model = train(
         model, 
         teacher_model, 
-        train_loader,
+        remaining_label_loader,
         val_loader, 
         optimizer_pretrain, 
         cross_entropy_loss, 
