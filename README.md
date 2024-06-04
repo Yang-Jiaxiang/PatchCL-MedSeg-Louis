@@ -21,7 +21,7 @@ Modify the `base_path` parameter in `src/main.py` to set the execution path.
 To execute the `main.py` file, use the following command:
 
 ```sh
-python src/main.py \
+python main.py \
 --dataset_path '/home/u5169119/dataset/0_data_dataset_voc_950_kidney' \
 --output_dir 'dataset/splits/kidney' \
 --patch_size 7 --embedding_size 128 \
