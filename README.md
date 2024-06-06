@@ -25,5 +25,5 @@ python main.py \
 --dataset_path '/home/u5169119/dataset/0_data_dataset_voc_950_kidney' \
 --output_dir 'dataset/splits/kidney' \
 --patch_size 7 --embedding_size 128 \
---img_size 224 --batch_size 16 --num_classes 2 \
+--img_size 224 --batch_size 16 \
 --ContrastiveWeights 0.1 --save_interval 2
