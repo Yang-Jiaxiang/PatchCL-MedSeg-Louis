@@ -26,4 +26,6 @@ python main.py \
 --output_dir 'dataset/splits/kidney' \
 --patch_size 7 --embedding_size 128 \
 --img_size 224 --batch_size 16 \
---ContrastiveWeights 0.1 --save_interval 2
+--ContrastiveWeights 0.1 \
+--ema_alpha 0.99 \
+--save_interval 2
