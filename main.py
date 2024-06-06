@@ -246,7 +246,6 @@ def load_pretrained_model(model, teacher_model, save_model_path, epoch):
     teacher_model.eval()
     return model, teacher_model
 
-# +
 def main():
     args = parse_args()
     dataset_path = args.dataset_path
@@ -414,8 +413,6 @@ def main():
     
     print('\n\n\n================> Finish')
 
-
-# -
 
 if __name__ == '__main__':
     main()
