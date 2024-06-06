@@ -209,7 +209,7 @@ def train(
         avg_t_accuracy = accuracy_metric.evaluate()
         avg_t_miou = miou_metric.evaluate()
 
-        reset_bn_stats(model, train_loader)
+#         reset_bn_stats(model, train_loader)
         val_loss, val_miou, val_accuracy, val_dice = validate(model, val_loader, criterion, num_classes)
 
         save_loss(
@@ -293,8 +293,8 @@ def main():
     teacher_model = teacher_model.to(dev)
 
     metrics = [smp.utils.metrics.IoU(threshold=0.5)]
-    optimizer_pretrain = torch.optim.Adam(model.parameters(), lr=0.001)
-    optimizer_ssl = torch.optim.SGD(model.parameters(), lr=0.007)
+    optimizer_pretrain = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+    optimizer_ssl = torch.optim.SGD(model.parameters(), lr=0.007, weight_decay=1e-5)
     scheduler = PolynomialLRDecay(optimizer=optimizer_pretrain, max_decay_steps=200, end_learning_rate=0.0001, power=2.0)
 
     labeled_dataset = PascalVOCDataset(txt_file=output_dir + "/1-3/labeled.txt", image_size=img_size, root_dir=dataset_path, labeled=True, colormap=voc_mask_color_map)
@@ -423,7 +423,7 @@ def main():
             save_loss_path
         )
 
-        print('\n\n\n================> Finish')
+    print('\n\n\n================> Finish')
 
 
 # -

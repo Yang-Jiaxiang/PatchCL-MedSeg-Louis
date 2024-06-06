@@ -1,0 +1,3 @@
+t_loss,t_supervised_loss,t_contrastive_loss,t_consistency_loss,t_miou,t_accuracy,t_dice,v_loss,v_supervised_loss,v_contrastive_loss,v_consistency_loss,v_miou,v_accuracy,v_dice,PatchCL_weight,time
+2.1093,0.1171,3.9843,0,0.7991,0.9498,0.8708,0.1829,0.1829,0,0,0.748,0.9236,0.8366,0.5,2024-06-06 12:52:30
+2.0234,0.0974,3.8520,0,0.8267,0.9571,0.8940,0.1598,0.1598,0,0,0.7591,0.9361,0.8381,0.5,2024-06-06 12:53:34

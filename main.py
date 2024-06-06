@@ -46,7 +46,7 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size for training')
     parser.add_argument('--ContrastiveWeights', type=float, default=0, help='Weight for PatchCL loss')
     parser.add_argument('--save_interval', type=int, default=2, help='Interval (in epochs) for saving the model')
-    
+    parser.add_argument('--ema_alpha', type=float, default=0, help='Weight for EMA')
     return parser.parse_args()
 
 def reset_bn_stats(model, train_loader):
@@ -101,6 +101,12 @@ def get_dynamic_weight(epoch, end_epochs):
     
     return weight
 
+def update_ema_variables(model, teacher_model, alpha, global_step):
+    # 使用真實平均值直到指數平均值更準確
+    alpha = min(1 - 1 / (global_step + 1), alpha)
+    for param_stud, param_teach in zip(model.parameters(), teacher_model.parameters()):
+        param_teach.data.mul_(alpha).add_(1 - alpha, param_stud.data)
+
 def train(
     model,
     teacher_model, 
@@ -118,12 +124,13 @@ def train(
     patch_size, 
     embedding_size, 
     ContrastiveWeights, 
+    ema_alpha,
     save_interval, 
     save_loss_model_path, 
     save_loss_path
 ):
     embd_queues = Embedding_Queues(num_classes)
-
+    
     for c_epochs in range(start_epochs,end_epochs):
         c_epochs += 1
 
@@ -172,32 +179,22 @@ def train(
             miou_metric.add_batch(out, masks)
 
             PCGJCL_loss = PCGJCL_loss.to(dev)
-            
-            
-            if step_name == "supervised-Pretraining":
-                if ContrastiveWeights == 0.0:
-                    PatchCL_weight = get_dynamic_weight(c_epochs, end_epochs)
-                else:
-                    PatchCL_weight = ContrastiveWeights
-            else:
-                PatchCL_weight = 0.5
-            
-            loss = supervised_loss + PatchCL_weight * PCGJCL_loss
+                        
+            loss = supervised_loss + ContrastiveWeights * PCGJCL_loss
 
             total_t_contrastive_loss += PCGJCL_loss.item()
             total_t_supervised_loss += supervised_loss.item()
             epoch_t_loss += loss.item()
             
-            if step_name == "supervised-Pretraining":
+            if step_name =='supervised-Pretraining':
                 loss.backward()
             else:
                 loss.backward(retain_graph=True)
-
+                
             optimizer.step()
 
-            for param_stud, param_teach in zip(model.parameters(), teacher_model.parameters()):
-                param_teach.data.copy_(0.001 * param_stud + 0.999 * param_teach)
-
+            update_ema_variables(model, teacher_model, alpha=ema_alpha, global_step=c_epochs)
+            
             end_time = time.time()
 
         avg_t_epoch_loss = epoch_t_loss / len(train_loader)
@@ -210,7 +207,7 @@ def train(
 
         reset_bn_stats(model, train_loader)
         val_loss, val_miou, val_accuracy, val_dice = validate(model, val_loader, criterion, num_classes)
-
+    
         save_loss(
             t_total_loss = f"{avg_t_epoch_loss:.4f}", 
             t_supervised_loss=f"{avg_t_supervised_loss:.4f}", 
@@ -224,19 +221,20 @@ def train(
             v_miou = f"{val_miou:.4f}",    
             v_accuracy = f"{val_accuracy:.4f}",
             v_dice = f"{val_dice:.4f}",
-            PatchCL_weight = PatchCL_weight,
+            PatchCL_weight = ContrastiveWeights,
             filename= f'{save_loss_path}_{step_name}.csv'
         )
 
         if (c_epochs) % save_interval == 0:
             os.makedirs(save_loss_model_path, exist_ok=True)
             torch.save(model, f"{save_loss_model_path}/model_{step_name}_{c_epochs}-s.pth")
+            torch.save(teacher_model, f"{save_loss_model_path}/model_{step_name}_{c_epochs}-t.pth")
     
     return model, teacher_model
 
 def load_pretrained_model(model, teacher_model, save_model_path, epoch):
     model_path = f"{save_model_path}{epoch}-s.pth"
-    teacher_model_path = f"{save_model_path}{epoch-10}-s.pth"
+    teacher_model_path = f"{save_model_path}{epoch}-t.pth"
     print('model_path: ', model_path)
     print('teacher_model_path: ', teacher_model_path)
     print("")
@@ -247,14 +245,6 @@ def load_pretrained_model(model, teacher_model, save_model_path, epoch):
     model.eval()
     teacher_model.eval()
     return model, teacher_model
-
-def to_one_hot(tensor, num_classes):
-    n, h, w = tensor.shape
-    one_hot = torch.zeros(n, num_classes, h, w).to(tensor.device)
-    one_hot.scatter_(1, tensor.unsqueeze(1), 1)
-    return one_hot
-
-
 
 # +
 def main():
@@ -268,6 +258,7 @@ def main():
     num_classes = len(voc_mask_color_map)
     ContrastiveWeights = args.ContrastiveWeights
     save_interval = args.save_interval
+    ema_alpha = args.ema_alpha
 
     save_loss_path = f'output/loss_{patch_size}-{ContrastiveWeights}'
     save_loss_model_path = f'output/{patch_size}-{ContrastiveWeights}'
@@ -288,8 +279,8 @@ def main():
     teacher_model = teacher_model.to(dev)
 
     metrics = [smp.utils.metrics.IoU(threshold=0.5)]
-    optimizer_pretrain = torch.optim.Adam(model.parameters(), lr=0.001)
-    optimizer_ssl = torch.optim.SGD(model.parameters(), lr=0.007)
+    optimizer_pretrain = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+    optimizer_ssl = torch.optim.SGD(model.parameters(), lr=0.007, weight_decay=1e-5)
     scheduler = PolynomialLRDecay(optimizer=optimizer_pretrain, max_decay_steps=200, end_learning_rate=0.0001, power=2.0)
 
     labeled_dataset = PascalVOCDataset(txt_file=output_dir + "/1-3/labeled.txt", image_size=img_size, root_dir=dataset_path, labeled=True, colormap=voc_mask_color_map)
@@ -332,6 +323,7 @@ def main():
         patch_size, 
         embedding_size,
         ContrastiveWeights,
+        ema_alpha,
         save_interval,
         save_loss_model_path,
         save_loss_path
@@ -370,6 +362,7 @@ def main():
         patch_size, 
         embedding_size,
         ContrastiveWeights,
+        ema_alpha,
         save_interval,
         save_loss_model_path,
         save_loss_path
@@ -413,6 +406,7 @@ def main():
         patch_size, 
         embedding_size,
         ContrastiveWeights,
+        ema_alpha,
         save_interval,
         save_loss_model_path,
         save_loss_path
