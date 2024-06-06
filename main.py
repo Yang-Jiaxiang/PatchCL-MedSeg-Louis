@@ -12,25 +12,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import argparse
 from torchvision import transforms
-
-def parse_args():
-    parser = argparse.ArgumentParser(description='Training parameters')
-    parser.add_argument('--dataset_path', type=str, default='/home/S312112021/dataset/0_data_dataset_voc_950_kidney', help='Path to the dataset')
-    parser.add_argument('--output_dir', type=str, default='dataset/splits/kidney', help='Output directory for results')
-    parser.add_argument('--patch_size', type=int, default=14, help='Batch size for contrastive learning')
-    parser.add_argument('--embedding_size', type=int, default=128, help='Size of the embedding vectors')
-    parser.add_argument('--img_size', type=int, default=224, help='Size of the input images')
-    parser.add_argument('--batch_size', type=int, default=16, help='Batch size for training')
-    parser.add_argument('--num_classes', type=int, default=2, help='Number of classes in the dataset')
-    parser.add_argument('--ContrastieWeights', type=float, default=0, help='Weight for PatchCL loss')
-    parser.add_argument('--save_interval', type=int, default=2, help='Interval (in epochs) for saving the model')
-    
-    return parser.parse_args()
-
-voc_mask_color_map = [
-    [0, 0, 0], # _background
-    [128, 0, 0] # kidney
-]
+from sklearn.model_selection import KFold
 
 from utils.transform import Transform
 from utils.stochastic_approx import StochasticApprox
@@ -47,7 +29,25 @@ from utils.loss_file import save_loss
 from utils_performance import DiceCoefficient, Accuracy, MeanIOU
 from utils.select_reliable import select_reliable, Label
 
+voc_mask_color_map = [
+    [0, 0, 0], # _background
+    [128, 0, 0] # kidney
+]
+
 dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Training parameters')
+    parser.add_argument('--dataset_path', type=str, default='/home/S312112021/dataset/0_data_dataset_voc_950_kidney', help='Path to the dataset')
+    parser.add_argument('--output_dir', type=str, default='dataset/splits/kidney', help='Output directory for results')
+    parser.add_argument('--patch_size', type=int, default=14, help='Batch size for contrastive learning')
+    parser.add_argument('--embedding_size', type=int, default=128, help='Size of the embedding vectors')
+    parser.add_argument('--img_size', type=int, default=224, help='Size of the input images')
+    parser.add_argument('--batch_size', type=int, default=16, help='Batch size for training')
+    parser.add_argument('--ContrastiveWeights', type=float, default=0, help='Weight for PatchCL loss')
+    parser.add_argument('--save_interval', type=int, default=2, help='Interval (in epochs) for saving the model')
+    
+    return parser.parse_args()
 
 def reset_bn_stats(model, train_loader):
     model.train()
@@ -117,7 +117,7 @@ def train(
     batch_size, 
     patch_size, 
     embedding_size, 
-    ContrastieWeights, 
+    ContrastiveWeights, 
     save_interval, 
     save_loss_model_path, 
     save_loss_path
@@ -175,10 +175,10 @@ def train(
             
             
             if step_name == "supervised-Pretraining":
-                if ContrastieWeights == 0.0:
+                if ContrastiveWeights == 0.0:
                     PatchCL_weight = get_dynamic_weight(c_epochs, end_epochs)
                 else:
-                    PatchCL_weight = ContrastieWeights
+                    PatchCL_weight = ContrastiveWeights
             else:
                 PatchCL_weight = 0.5
             
@@ -265,12 +265,12 @@ def main():
     embedding_size = args.embedding_size
     img_size = args.img_size
     batch_size = args.batch_size
-    num_classes = args.num_classes
-    ContrastieWeights = args.ContrastieWeights
+    num_classes = len(voc_mask_color_map)
+    ContrastiveWeights = args.ContrastiveWeights
     save_interval = args.save_interval
 
-    save_loss_path = f'output/loss_{patch_size}-{ContrastieWeights}'
-    save_loss_model_path = f'output/{patch_size}-{ContrastieWeights}'
+    save_loss_path = f'output/loss_{patch_size}-{ContrastiveWeights}'
+    save_loss_model_path = f'output/{patch_size}-{ContrastiveWeights}'
     
     cross_entropy_loss = CE_loss(num_classes, image_size=img_size)
 
@@ -315,27 +315,27 @@ def main():
     supervised_start_epoch = 0
     supervised_end_epoch = 100
     
-#     model, teacher_model = train(
-#         model, 
-#         teacher_model, 
-#         train_loader,
-#         val_loader, 
-#         optimizer_pretrain, 
-#         cross_entropy_loss, 
-#         dev, 
-#         supervised_start_epoch, 
-#         supervised_end_epoch, 
-#         "supervised-Pretraining", 
-#         num_classes, 
-#         img_size, 
-#         batch_size, 
-#         patch_size, 
-#         embedding_size,
-#         ContrastieWeights,
-#         save_interval,
-#         save_loss_model_path,
-#         save_loss_path
-#     )
+    model, teacher_model = train(
+        model, 
+        teacher_model, 
+        train_loader,
+        val_loader, 
+        optimizer_pretrain, 
+        cross_entropy_loss, 
+        dev, 
+        supervised_start_epoch, 
+        supervised_end_epoch, 
+        "supervised-Pretraining", 
+        num_classes, 
+        img_size, 
+        batch_size, 
+        patch_size, 
+        embedding_size,
+        ContrastiveWeights,
+        save_interval,
+        save_loss_model_path,
+        save_loss_path
+    )
 
     print('\n\n\n================> Total stage 2/6: Select reliable images for the 1st stage re-training')
     save_model_path = f"{save_loss_model_path}/model_supervised-Pretraining_"
@@ -353,27 +353,27 @@ def main():
     SSL_step1_start_epoch = 0
     SSL_step1_end_epoch = 100
     
-#     model, teacher_model = train(
-#         model, 
-#         teacher_model, 
-#         combined_loader,
-#         val_loader, 
-#         optimizer_pretrain, 
-#         cross_entropy_loss, 
-#         dev, 
-#         SSL_step1_start_epoch, 
-#         SSL_step1_end_epoch, 
-#         "SSL-reliable-st1", 
-#         num_classes, 
-#         img_size, 
-#         batch_size, 
-#         patch_size, 
-#         embedding_size,
-#         ContrastieWeights,
-#         save_interval,
-#         save_loss_model_path,
-#         save_loss_path
-#     )
+    model, teacher_model = train(
+        model, 
+        teacher_model, 
+        combined_loader,
+        val_loader, 
+        optimizer_pretrain, 
+        cross_entropy_loss, 
+        dev, 
+        SSL_step1_start_epoch, 
+        SSL_step1_end_epoch, 
+        "SSL-reliable-st1", 
+        num_classes, 
+        img_size, 
+        batch_size, 
+        patch_size, 
+        embedding_size,
+        ContrastiveWeights,
+        save_interval,
+        save_loss_model_path,
+        save_loss_path
+    )
     
     print('\n\n\n================> Total stage 5/6: Generate pseudo labels for remaining images')
 
@@ -412,7 +412,7 @@ def main():
         batch_size, 
         patch_size, 
         embedding_size,
-        ContrastieWeights,
+        ContrastiveWeights,
         save_interval,
         save_loss_model_path,
         save_loss_path
