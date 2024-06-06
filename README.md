@@ -28,4 +28,4 @@ python main.py \
 --img_size 224 --batch_size 16 \
 --ContrastiveWeights 0.1 \
 --ema_alpha 0.99 \
---save_interval 2
+--save_interval 10
