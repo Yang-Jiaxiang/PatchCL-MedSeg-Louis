@@ -279,8 +279,8 @@ def main():
     teacher_model = teacher_model.to(dev)
 
     metrics = [smp.utils.metrics.IoU(threshold=0.5)]
-    optimizer_pretrain = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
-    optimizer_ssl = torch.optim.SGD(model.parameters(), lr=0.007, weight_decay=1e-5)
+    optimizer_pretrain = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-3)
+    optimizer_ssl = torch.optim.SGD(model.parameters(), lr=0.007, weight_decay=1e-3)
     scheduler = PolynomialLRDecay(optimizer=optimizer_pretrain, max_decay_steps=200, end_learning_rate=0.0001, power=2.0)
 
     labeled_dataset = PascalVOCDataset(txt_file=output_dir + "/1-3/labeled.txt", image_size=img_size, root_dir=dataset_path, labeled=True, colormap=voc_mask_color_map)
