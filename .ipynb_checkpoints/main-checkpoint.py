@@ -279,8 +279,8 @@ def main():
     teacher_model = teacher_model.to(dev)
 
     metrics = [smp.utils.metrics.IoU(threshold=0.5)]
-    optimizer_pretrain = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-3)
-    optimizer_ssl = torch.optim.SGD(model.parameters(), lr=0.007, weight_decay=1e-3)
+    optimizer_pretrain = torch.optim.Adam(model.parameters(), lr=0.001) # , weight_decay=1e-4
+    optimizer_ssl = torch.optim.SGD(model.parameters(), lr=0.007) # , weight_decay=1e-4
     scheduler = PolynomialLRDecay(optimizer=optimizer_pretrain, max_decay_steps=200, end_learning_rate=0.0001, power=2.0)
 
     labeled_dataset = PascalVOCDataset(txt_file=output_dir + "/1-3/labeled.txt", image_size=img_size, root_dir=dataset_path, labeled=True, colormap=voc_mask_color_map)
@@ -306,28 +306,28 @@ def main():
     supervised_start_epoch = 0
     supervised_end_epoch = 100
     
-    model, teacher_model = train(
-        model, 
-        teacher_model, 
-        train_loader,
-        val_loader, 
-        optimizer_pretrain, 
-        cross_entropy_loss, 
-        dev, 
-        supervised_start_epoch, 
-        supervised_end_epoch, 
-        "supervised-Pretraining", 
-        num_classes, 
-        img_size, 
-        batch_size, 
-        patch_size, 
-        embedding_size,
-        ContrastiveWeights,
-        ema_alpha,
-        save_interval,
-        save_loss_model_path,
-        save_loss_path
-    )
+#     model, teacher_model = train(
+#         model, 
+#         teacher_model, 
+#         train_loader,
+#         val_loader, 
+#         optimizer_pretrain, 
+#         cross_entropy_loss, 
+#         dev, 
+#         supervised_start_epoch, 
+#         supervised_end_epoch, 
+#         "supervised-Pretraining", 
+#         num_classes, 
+#         img_size, 
+#         batch_size, 
+#         patch_size, 
+#         embedding_size,
+#         ContrastiveWeights,
+#         ema_alpha,
+#         save_interval,
+#         save_loss_model_path,
+#         save_loss_path
+#     )
 
     print('\n\n\n================> Total stage 2/6: Select reliable images for the 1st stage re-training')
     save_model_path = f"{save_loss_model_path}/model_supervised-Pretraining_"

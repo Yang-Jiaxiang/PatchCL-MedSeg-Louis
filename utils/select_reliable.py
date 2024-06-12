@@ -32,7 +32,7 @@ def select_reliable(model, teacher_model, data_loader, num_classes, threshold=0.
 
             # 計算基於 softmax 的 MSE 損失
             consistency_loss = softmax_mse_loss(student_outputs, teacher_outputs)
-
+            
             student_outputs_one_hot = torch.nn.functional.one_hot(student_outputs.argmax(dim=1), num_classes=num_classes)
             student_outputs_one_hot = student_outputs_one_hot.permute(0, 3, 1, 2).float()
 
