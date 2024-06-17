@@ -2,11 +2,50 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 from torch.utils.data import TensorDataset
+from utils.DISLOSS import DiceLoss
+import torch.nn.functional as F
+import torchvision.transforms as transforms
+
 
 def softmax_mse_loss(student_outputs, teacher_outputs):
     student_softmax = torch.nn.functional.softmax(student_outputs, dim=1)
     teacher_softmax = torch.nn.functional.softmax(teacher_outputs, dim=1)
     return torch.mean((student_softmax - teacher_softmax) ** 2, dim=1)
+
+
+def consistency_regularization_CELoss(model, teacher_model, imgs):
+    # Define strong and weak augmentations
+    strong_aug = transforms.Compose([
+        transforms.ColorJitter(brightness=0.5)
+        # Add more morphological transformations if needed
+    ])
+
+    weak_aug = transforms.Compose([
+        transforms.RandomRotation(degrees=(0, 30)),  # Random rotation within 0-30 degrees
+        transforms.RandomCrop(size=(imgs.shape[2], imgs.shape[3]))  # Random crop, set size as needed
+        # Add more augmentations if needed
+    ])
+
+    # Apply augmentations to the images
+    weak_aug_imgs = weak_aug(imgs)
+    strong_aug_imgs = strong_aug(imgs)
+    
+    # Get predictions from the model and teacher model
+    model_preds = model(strong_aug_imgs)
+    teacher_preds = teacher_model(weak_aug_imgs)
+    
+    # Use softmax on both predictions to get probability distributions
+    model_probs = F.softmax(model_preds, dim=1)
+    teacher_probs = F.softmax(teacher_preds, dim=1)
+    
+    # Flatten the tensors to match the input requirements of F.cross_entropy
+    model_probs = model_probs.permute(0, 2, 3, 1).reshape(-1, model_probs.shape[1])
+    teacher_probs = teacher_probs.permute(0, 2, 3, 1).reshape(-1, teacher_probs.shape[1])
+
+    # Compute cross-entropy loss
+    consistency_loss = torch.mean(torch.sum(-teacher_probs * torch.log(model_probs + 1e-10), dim=-1))
+
+    return consistency_loss
 
 def select_reliable(model, teacher_model, data_loader, num_classes, threshold=0.1, device='cuda'):
     model.eval()
@@ -29,7 +68,7 @@ def select_reliable(model, teacher_model, data_loader, num_classes, threshold=0.
 
             student_outputs = model(imgs)
             teacher_outputs = teacher_model(ema_inputs)
-
+            
             # 計算基於 softmax 的 MSE 損失
             consistency_loss = softmax_mse_loss(student_outputs, teacher_outputs)
             

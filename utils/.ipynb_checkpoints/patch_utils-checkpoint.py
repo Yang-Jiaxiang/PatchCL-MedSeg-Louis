@@ -5,6 +5,8 @@ cv2.setNumThreads(0)
 cv2.ocl.setUseOpenCL(False)
 import numpy as np
 from utils.nms_utils import non_max_suppression_slow, non_max_suppression_fast
+import torch
+
 
 def patcher(imgs,mask,x,y,w,h,patch_size,image_size):
 
@@ -22,7 +24,6 @@ def patcher(imgs,mask,x,y,w,h,patch_size,image_size):
     OUPUTS:
     out: list of patches wich patch shape as (3 X patch_shape X patch_shape)
     """
-    
     if w<patch_size and h<patch_size:
         #flag1,flag2 indicates if patch centered at x,y exceeds the image x,y dims from upper left portions
         #flag3,flag4 ndicates if patch centered at x,y exceeds the image x,y dims from lower right postions
@@ -100,7 +101,7 @@ def _get_patches(imgs,masks,classes=21,background=True,img_size=512,patch_size=2
     OUTPUTS:
     'patches' (list of ndarrays): list of len 'classes' made of ndarrays of shape (NumberOfPatches X 3 X 'patch_size' X 'patch_size')
     """
-
+    
     #LOOK AT THIS CONVERSTION!!
     masks=np.array(masks,dtype='uint8')
     imgs=np.array(imgs)
