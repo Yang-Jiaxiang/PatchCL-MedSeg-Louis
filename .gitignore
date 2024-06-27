@@ -1,5 +1,6 @@
-ACDC/*
-*.pth
-Loss_curve.csv
+data/
+*.jpg
+*.jpeg
+*.png
 *.pyc
 __pycache__/
