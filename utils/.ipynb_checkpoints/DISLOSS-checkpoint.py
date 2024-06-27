@@ -8,16 +8,21 @@ class DiceLoss(nn.Module):
     def __init__(self, weight=None, size_average=True):
         super(DiceLoss, self).__init__()
 
-    def forward(self, inputs, targets, smooth=1):
+    def forward(self, pred, targets, smooth=1):
+        # Convert targets to one-hot encoding
+        target_one_hot = F.one_hot(targets, num_classes=pred.shape[1]).permute(0, 3, 1, 2).float()
+        target_one_hot = target_one_hot[:,1:,:,:]
         
-        #comment out if your model contains a sigmoid or equivalent activation layer
-        inputs = F.sigmoid(inputs)       
+        # If your model contains a sigmoid activation layer, comment out the following line
+        pred = pred[:,1:,:,:]
+        pred = F.sigmoid(pred)
         
-        #flatten label and prediction tensors
-        inputs = inputs.reshape(-1)
-        targets = targets.reshape(-1)
+        # Flatten label and prediction tensors
+        pred_flat = pred.contiguous().view(-1)
+        target_flat = target_one_hot.contiguous().view(-1)
         
-        intersection = (inputs * targets).sum()                            
-        dice = (2.*intersection + smooth)/(inputs.sum() + targets.sum() + smooth)  
-        
+        intersection = (pred_flat * target_flat).sum()
+        union = pred_flat.sum() + target_flat.sum()
+
+        dice = (2. * intersection + smooth) / (union + smooth)
         return 1 - dice

@@ -67,7 +67,6 @@ def main():
 
     for param in teacher_model.parameters():
         param.requires_grad = False
-
     teacher_model.load_state_dict(model.state_dict())
 
     model = nn.DataParallel(model)
@@ -79,17 +78,10 @@ def main():
     optimizer_ssl = torch.optim.SGD(model.parameters(), lr=0.007) # , weight_decay=1e-4
     scheduler = PolynomialLRDecay(optimizer=optimizer_pretrain, max_decay_steps=200, end_learning_rate=0.0001, power=2.0)
 
-    labeled_dataset = PascalVOCDataset(txt_file=output_dir + "/1-3/labeled.txt", image_size=img_size, root_dir=dataset_path, labeled=True, colormap=voc_mask_color_map)
-    labeled_dataset_length = len(labeled_dataset)
-
-    train_ratio = 0.8
-    val_ratio = 1 - train_ratio
-    train_length = int(train_ratio * labeled_dataset_length)
-    val_length = labeled_dataset_length - train_length
-
-    train_dataset, val_dataset = random_split(labeled_dataset, [train_length, val_length])
+    train_dataset = PascalVOCDataset(txt_file=output_dir + "/1-3/train.txt", image_size=img_size, root_dir=dataset_path, labeled=True, colormap=voc_mask_color_map)
+    val_dataset = PascalVOCDataset(txt_file=output_dir + "/1-3/val.txt", image_size=img_size, root_dir=dataset_path, labeled=True, colormap=voc_mask_color_map)
     unlabeled_dataset = PascalVOCDataset(txt_file=output_dir + "/1-3/unlabeled.txt", image_size=img_size, root_dir=dataset_path, labeled=False, colormap=voc_mask_color_map)
-
+        
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
     unlabeled_loader = DataLoader(unlabeled_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
@@ -97,6 +89,7 @@ def main():
     print('number of train_dataset: ', len(train_dataset))
     print('number of val_dataset: ', len(val_dataset))
     print('number of unlabeled_dataset: ', len(unlabeled_dataset))
+    
 
     print('\n\n\n================> Total stage 1/6: Supervised training on labeled images (SupOnly)')    
     model, teacher_model = train(
@@ -117,20 +110,23 @@ def main():
         ema_alpha,
         save_interval,
         save_model_path,
-        save_loss_path
+        save_loss_path,
+        ema_dynamic = True
     )
 
+    # 加載模型並選擇可靠的數據集
     print('\n\n\n================> Total stage 2/6: Select reliable images for the 1st stage re-training')
     model, teacher_model = load_pretrained_model(model, teacher_model, f"{save_model_path}/model_supervised-Pretraining_", supervised_epoch)
-    reliable_dataset, remaining_dataset= select_reliable(model, teacher_model, unlabeled_loader, num_classes)
+    reliable_dataset, remaining_dataset = select_reliable(model, teacher_model, unlabeled_loader, num_classes)
     print('reliable_dataset:', len(reliable_dataset))
     print('remaining_dataset:', len(remaining_dataset))
-    
+
+    # 合併訓練數據集和可靠數據集
     print('\n\n\n================> Total stage 3/6: Concat train_dataset reliable_dataset')
     combined_dataset = ConcatDataset([train_dataset, reliable_dataset])
-    combined_loader = DataLoader(combined_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    combined_loader = DataLoader(combined_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
     print("combined_dataset: ", len(combined_dataset))
-    
+        
     print('\n\n\n================> Total stage 4/6: Semi-supervised training with reliable images (SSL)')
     
     model, teacher_model = train(
@@ -151,7 +147,8 @@ def main():
         ema_alpha,
         save_interval,
         save_model_path,
-        save_loss_path
+        save_loss_path,
+        ema_dynamic = True
     )
     
     print('\n\n\n================> Total stage 5/6: Generate pseudo labels for remaining images')
@@ -190,7 +187,8 @@ def main():
         ema_alpha,
         save_interval,
         save_model_path,
-        save_loss_path
+        save_loss_path,
+        ema_dynamic = True
     )
     
     print('\n\n\n================> Finish')

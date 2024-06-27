@@ -38,7 +38,8 @@ def train(
     ema_alpha,
     save_interval, 
     save_model_path, 
-    save_loss_path
+    save_loss_path,
+    ema_dynamic=False
 ):
     embd_queues = Embedding_Queues(num_classes)
     
@@ -83,13 +84,11 @@ def train(
             model.module.contrast = False
             out = model(imgs)
             
-            out_selected = out[:, 1:, :, :]  # shape: (16, C-1, 224, 224)
-            masks_selected = masks[:, 1:, :, :]  # shape: (16, C-1, 224, 224)
+            # Dice loss
+            supervised_loss = criterion(out, masks)
 
-            supervised_loss = criterion(out_selected, masks_selected)
-
-            dice_coeff.add_batch(out_selected, masks_selected)
-            miou_metric.add_batch(out_selected, masks_selected)
+            dice_coeff.add_batch(out, masks)
+            miou_metric.add_batch(out, masks)
 
             PCGJCL_loss = PCGJCL_loss.to(dev)
                         
@@ -106,7 +105,13 @@ def train(
                 
             optimizer.step()
 
-            update_ema_variables(model, teacher_model, alpha=ema_alpha, global_step=c_epochs)
+
+            # 動態 EMA
+            if ema_dynamic:
+                update_ema_variables(model, teacher_model, alpha=ema_alpha, global_step=c_epochs)
+            else:
+                for param_stud, param_teach in zip(model.parameters(),teacher_model.parameters()):
+                    param_teach.data.copy_(0.001*param_stud + ema_alpha*param_teach)
             
             end_time = time.time()
 
@@ -119,7 +124,7 @@ def train(
 
         reset_bn_stats(model, train_loader)
         val_loss, val_miou, val_dice = validate(model, val_loader, criterion, num_classes)
-    
+                
         save_loss(
             t_total_loss = f"{avg_t_epoch_loss:.4f}", 
             t_supervised_loss=f"{avg_t_supervised_loss:.4f}", 

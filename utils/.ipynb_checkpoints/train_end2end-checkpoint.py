@@ -18,6 +18,8 @@ from utils.validate import validate
 from utils.update_ema_variables import update_ema_variables
 from utils.reset_bn_stats import reset_bn_stats
 from utils.select_reliable import consistency_regularization_CELoss
+from utils.torch_poly_lr_decay import PolynomialLRDecay
+
 
 dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -43,6 +45,8 @@ def train_end2end(
     save_loss_path
 ):
     embd_queues = Embedding_Queues(num_classes)
+    scheduler = PolynomialLRDecay(optimizer, max_decay_steps=200, end_learning_rate=0.0001, power=2.0)
+
     
     for c_epochs in range(0,end_epochs):
         c_epochs += 1
@@ -73,14 +77,15 @@ def train_end2end(
                 except StopIteration:
                     labeled_iterator = iter(train_loader)
                     imgs_l, masks_l = next(labeled_iterator)
-                
+                    
+                p_masks = p_masks.argmax(dim=1)
                 #concatenating unlabeled and labeled sets
                 c_masks = torch.cat([p_masks,masks_l],dim=0)
                 c_imgs = torch.cat([imgs_u,imgs_l],dim=0)        
                 
                 #get classwise patch list
                 patch_list = _get_patches(
-                    imgs_u, p_masks,
+                    c_imgs, c_masks,
                     classes=num_classes,
                     background=True,
                     img_size=img_size,
@@ -92,36 +97,38 @@ def train_end2end(
                 qualified_tensor_patch_list = [torch.tensor(patch) if patch is not None else None for patch in patch_list]
             
             
-            # labeled data
+            # Patch Contrastive Label and Pseudo data
             model=model.train()
+            model.module.contrast=True                
+            student_emb_list = get_embeddings(model, qualified_tensor_patch_list, True, batch_size)
+            
             teacher_model.train()
+            teacher_model.module.contrast = True
+            teacher_embedding_list = get_embeddings(teacher_model, aug_tensor_patch_list, True, batch_size)
+            
+            embd_queues.enqueue(teacher_embedding_list)
+            
+            PCGJCL_loss = simple_PCGJCL(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096)
+            PCGJCL_loss = PCGJCL_loss.to(dev)
+            
+            
+            
+            # Segmentation Label data
             model.module.contrast=False
             teacher_model.module.contrast = False   
             
             imgs_l, masks_l =imgs_l.to(dev), masks_l.to(dev)
             out_l = model(imgs_l)
-            out_selected = out_l[:, 1:, :, :]  # shape: (16, C-1, 224, 224)
-            masks_selected = masks_l[:, 1:, :, :]  # shape: (16, C-1, 224, 224)
-            supervised_loss = criterion(out_selected, masks_selected)
+            supervised_loss = criterion(out_l, masks_l)
             supervised_loss = supervised_loss.to(dev)
-            dice_coeff.add_batch(out_selected, masks_selected)
-            miou_metric.add_batch(out_selected, masks_selected)
+            dice_coeff.add_batch(out_l, masks_l)
+            miou_metric.add_batch(out_l, masks_l)
             
             
-            # Unlabeled data
+            # Consistency regularization Unlabeled data
             consistency_loss = consistency_regularization_CELoss(model, teacher_model, imgs_u)
-            consistency_loss = consistency_loss.to(dev)
-            
-            
-            model.module.contrast=True                
-            student_emb_list = get_embeddings(model, qualified_tensor_patch_list, True, batch_size)
-            
-            teacher_model.module.contrast = True
-            teacher_embedding_list = get_embeddings(teacher_model, aug_tensor_patch_list, True, batch_size)
-            embd_queues.enqueue(teacher_embedding_list)
-            
-            PCGJCL_loss = simple_PCGJCL(student_emb_list, embd_queues, embedding_size, 0.2 , 4, psi=4096)
-            PCGJCL_loss = PCGJCL_loss.to(dev)
+            consistency_loss = consistency_loss.to(dev)            
+
             
             loss  = supervised_loss + contrastiveWeights * PCGJCL_loss + 4 * consistency_loss
             
@@ -132,8 +139,12 @@ def train_end2end(
             
             loss.backward()
             optimizer.step()
+            scheduler.step()
             
-            update_ema_variables(model, teacher_model, alpha=ema_alpha, global_step=c_epochs)
+            # EMA
+            for param_stud, param_teach in zip(model.parameters(),teacher_model.parameters()):
+                param_teach.data.copy_(0.001*param_stud + ema_alpha*param_teach)
+            
             end_time = time.time()
 
         avg_t_epoch_loss = epoch_t_loss / len(unlabeled_loader)

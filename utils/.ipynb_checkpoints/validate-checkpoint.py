@@ -19,13 +19,11 @@ def validate(model, val_loader, criterion, num_classes):
             imgs = imgs.to(dev)
             masks = masks.to(dev)
 
-            outputs = model(imgs)
-            out_selected = outputs[:, 1:, :, :]  # shape: (16, C-1, 224, 224)
-            masks_selected = masks[:, 1:, :, :]  # shape: (16, C-1, 224, 224)
+            out = model(imgs)
             
-            loss = criterion(out_selected, masks_selected)
-            dice_coeff.add_batch(out_selected, masks_selected)
-            miou_metric.add_batch(out_selected, masks_selected)
+            loss = criterion(out, masks)
+            dice_coeff.add_batch(out, masks)
+            miou_metric.add_batch(out, masks)
             
             val_loss += loss.item() * imgs.size(0)
             total_samples += imgs.size(0)

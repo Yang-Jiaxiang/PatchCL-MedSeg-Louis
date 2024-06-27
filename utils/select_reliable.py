@@ -72,20 +72,21 @@ def select_reliable(model, teacher_model, data_loader, num_classes, threshold=0.
             # 計算基於 softmax 的 MSE 損失
             consistency_loss = softmax_mse_loss(student_outputs, teacher_outputs)
             
-            student_outputs_one_hot = torch.nn.functional.one_hot(student_outputs.argmax(dim=1), num_classes=num_classes)
-            student_outputs_one_hot = student_outputs_one_hot.permute(0, 3, 1, 2).float()
+            student_outputs = student_outputs.argmax(dim=1)
 
-            for img, output, loss in zip(imgs, student_outputs_one_hot, consistency_loss):
+            for img, output, loss in zip(imgs, student_outputs, consistency_loss):
                 if loss.mean().item() < threshold:
-                    reliable_images.append(img.cpu().numpy())
-                    reliable_outputs.append(output.cpu().numpy())
+                    reliable_images.append(img.cpu())
+                    reliable_outputs.append(output.cpu())
                 else:
-                    remaining_images.append(img.cpu().numpy())
+                    remaining_images.append(img.cpu())
 
-    reliable_images_tensor = torch.tensor(reliable_images)
-    reliable_outputs_tensor = torch.tensor(reliable_outputs)
+    reliable_images_tensor = torch.stack(reliable_images)
+    reliable_outputs_tensor = torch.stack(reliable_outputs)
     reliable_dataset = TensorDataset(reliable_images_tensor, reliable_outputs_tensor)
-    remaining_dataset = TensorDataset(torch.tensor(remaining_images))
+    remaining_images_tensor = torch.stack(remaining_images)
+    remaining_dataset = TensorDataset(remaining_images_tensor)
+    
     return reliable_dataset, remaining_dataset
 
 
@@ -104,15 +105,11 @@ def Label(model, data_loader, num_classes, device='cuda'):
         else:
             raise ValueError(f"Unexpected batch type: {type(batch)}")
         
-        print(f"Images type: {type(imgs)}, shape: {imgs.shape}")  # 打印圖像數據的類型和形狀
-        
         imgs = imgs.to(device)
         output = model(imgs)
+        output = output.argmax(dim=1)
         
-        outputs_one_hot = torch.nn.functional.one_hot(output.argmax(dim=1), num_classes=num_classes)
-        outputs_one_hot = outputs_one_hot.permute(0, 3, 1, 2).float()
-        
-        for img, output in zip(imgs, outputs_one_hot):
+        for img, output in zip(imgs, output):
             images.append(img.cpu().numpy())
             outputs.append(output.cpu().numpy())
             

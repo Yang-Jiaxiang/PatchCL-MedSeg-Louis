@@ -41,7 +41,7 @@ def str2bool(v):
         
 def parse_args():
     parser = argparse.ArgumentParser(description='Training parameters')
-    parser.add_argument('--dataset_path', type=str, default='/home/S312112021/dataset/0_data_dataset_voc_950_kidney', help='Path to the dataset')
+    parser.add_argument('--dataset_path', type=str, default='/dataset/0_data_dataset_voc_950', help='Path to the dataset')
     parser.add_argument('--output_dir', type=str, default='dataset/splits/kidney', help='Output directory for results')
     parser.add_argument('--patch_size', type=int, default=14, help='Batch size for contrastive learning')
     parser.add_argument('--embedding_size', type=int, default=128, help='Size of the embedding vectors')
@@ -130,7 +130,8 @@ def main():
             ema_alpha,
             save_interval,
             save_model_path,
-            save_loss_path
+            save_loss_path,
+            ema_dynamic = False
         )
 
         model, teacher_model = load_pretrained_model(model, teacher_model, f"{save_model_path}/model_supervised-Pretraining_", supervised_epoch)

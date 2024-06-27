@@ -85,7 +85,17 @@ def patcher(imgs,mask,x,y,w,h,patch_size,image_size):
                     coordinate_list.append(np.array([x_corner, y_corner,x_corner+patch_size, y_corner+patch_size]))
         return out_list,coordinate_list
 
+def convert_to_one_hot(masks, num_classes=4):
+    """
+    마스크 텐서를 원-핫 인코딩 형식으로 변환합니다.
+    """
+    batch_size, height, width = masks.shape
+    one_hot = np.zeros((batch_size, num_classes, height, width), dtype=np.uint8)
+    for class_id in range(num_classes):
+        class_mask = (masks == class_id)
+        one_hot[:, class_id, :, :] = class_mask # 0 또는 1
 
+    return one_hot
 
 def _get_patches(imgs,masks,classes=21,background=True,img_size=512,patch_size=256):
 
@@ -101,6 +111,8 @@ def _get_patches(imgs,masks,classes=21,background=True,img_size=512,patch_size=2
     OUTPUTS:
     'patches' (list of ndarrays): list of len 'classes' made of ndarrays of shape (NumberOfPatches X 3 X 'patch_size' X 'patch_size')
     """
+    
+    masks = convert_to_one_hot(masks, classes)
     
     #LOOK AT THIS CONVERSTION!!
     masks=np.array(masks,dtype='uint8')
